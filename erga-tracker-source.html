@@ -140,7 +140,7 @@
   .contact-remove:hover { color: #A6402C; }
 
   .kv-row { display: grid; grid-template-columns: 1fr 1fr auto 26px; gap: 8px; margin-bottom: 8px; align-items: center; }
-  .kv-row input { padding: 8px 9px; border: 1px solid #D8D3C5; border-radius: 3px; font-size: 12.5px; background: #FFFFFF; color: #221F1A; width: 100%; }
+  .kv-row input, .kv-row select { padding: 8px 9px; border: 1px solid #D8D3C5; border-radius: 3px; font-size: 12.5px; background: #FFFFFF; color: #221F1A; width: 100%; }
   .kv-file-attach { font-size: 15px; color: #8A8676; padding: 4px; }
   .kv-file-attach:hover { color: #221F1A; }
   .kv-file-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; padding: 4px 8px; border-radius: 10px; background: #EFEBE0; color: #221F1A; white-space: nowrap; max-width: 140px; }
@@ -150,6 +150,10 @@
   .kv-list { font-size: 12.5px; color: #6E6A5F; }
   .kv-list .kv-item { padding: 3px 0; }
   .kv-list .kv-item b { color: #221F1A; }
+
+  .doc-category { margin-bottom: 12px; }
+  .doc-category-title { font-weight: 600; font-size: 12.5px; color: #221F1A; margin-bottom: 3px; }
+  .doc-category .kv-item { padding: 2px 0 2px 10px; font-size: 12.5px; color: #6E6A5F; }
 
   .contact-card { display: flex; flex-wrap: wrap; gap: 3px 14px; font-size: 12.5px; color: #6E6A5F; }
   .contact-card .c-name { font-weight: 600; color: #221F1A; }
@@ -226,41 +230,51 @@
           <button type="button" class="filter-btn" id="pjEditBtn">&#9998; Επεξεργασία</button>
         </div>
       </div>
-      <div class="field-row">
-        <div class="field"><label>Όνομα έργου</label><input id="pjName" placeholder="π.χ. Κατοικία Δήμητρα"></div>
-        <div class="field"><label>Αριθμός έργου</label><input id="pjNumber" type="number"></div>
+      <div class="filter-group" style="margin-bottom:16px;">
+        <button type="button" class="filter-btn" id="pjTabInfoBtn">Στοιχεία έργου</button>
+        <button type="button" class="filter-btn" id="pjTabDocsBtn">Έγγραφα</button>
       </div>
-      <div class="field"><label>Αριθμός συμβολαίου</label><input id="pjContractNumber"></div>
-      <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr;">
-        <div class="field"><label>Ποσό συμβολαίου €</label><input id="pjBudget" type="number"></div>
-        <div class="field"><label>ΦΠΑ</label><select id="pjBudgetVat"></select></div>
-        <div class="field"><label>Σύνολο</label><input id="pjBudgetTotalPreview" readonly></div>
+
+      <div id="pjTabInfoPanel">
+        <div class="field-row">
+          <div class="field"><label>Όνομα έργου</label><input id="pjName" placeholder="π.χ. Κατοικία Δήμητρα"></div>
+          <div class="field"><label>Αριθμός έργου</label><input id="pjNumber" type="number"></div>
+        </div>
+        <div class="field"><label>Αριθμός συμβολαίου</label><input id="pjContractNumber"></div>
+        <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr;">
+          <div class="field"><label>Ποσό συμβολαίου €</label><input id="pjBudget" type="number"></div>
+          <div class="field"><label>ΦΠΑ</label><select id="pjBudgetVat"></select></div>
+          <div class="field"><label>Σύνολο</label><input id="pjBudgetTotalPreview" readonly></div>
+        </div>
+        <div class="field"><label>Διεύθυνση / τοποθεσία</label><input id="pjAddress"></div>
+        <div class="field-row">
+          <div class="field"><label>Ημ/νία έναρξης</label><input id="pjStartDate" type="date"></div>
+          <div class="field"><label>Αναμ. ημ/νία λήξης</label><input id="pjEndDate" type="date"></div>
+        </div>
+        <div class="field">
+          <label>Κατάσταση</label>
+          <select id="pjStatus">
+            <option value="active">Ενεργό</option>
+            <option value="on_hold">Σε αναμονή</option>
+            <option value="completed">Ολοκληρωμένο</option>
+            <option value="cancelled">Ακυρωμένο</option>
+          </select>
+        </div>
+        <div class="field"><label>ΑΦΜ πελάτη</label><input id="pjClientVat"></div>
+        <div class="field">
+          <label>Επαφές έργου (π.χ. πελάτης, μηχανικός, επιβλέπων)</label>
+          <div id="pjContacts"></div>
+          <button type="button" id="addContactBtn" class="btn-outline" style="margin-top:2px; font-size:12px; padding:6px 10px; width:auto; display:inline-flex;">+ Προσθήκη επαφής</button>
+        </div>
       </div>
-      <div class="field"><label>Διεύθυνση / τοποθεσία</label><input id="pjAddress"></div>
-      <div class="field-row">
-        <div class="field"><label>Ημ/νία έναρξης</label><input id="pjStartDate" type="date"></div>
-        <div class="field"><label>Αναμ. ημ/νία λήξης</label><input id="pjEndDate" type="date"></div>
+
+      <div id="pjTabDocsPanel" style="display:none;">
+        <div class="field">
+          <div id="pjFields"></div>
+          <button type="button" id="addFieldBtn" class="btn-outline" style="margin-top:2px; font-size:12px; padding:6px 10px; width:auto; display:inline-flex;">+ Προσθήκη εγγράφου</button>
+        </div>
       </div>
-      <div class="field">
-        <label>Κατάσταση</label>
-        <select id="pjStatus">
-          <option value="active">Ενεργό</option>
-          <option value="on_hold">Σε αναμονή</option>
-          <option value="completed">Ολοκληρωμένο</option>
-          <option value="cancelled">Ακυρωμένο</option>
-        </select>
-      </div>
-      <div class="field"><label>ΑΦΜ πελάτη</label><input id="pjClientVat"></div>
-      <div class="field">
-        <label>Επαφές έργου (π.χ. πελάτης, μηχανικός, επιβλέπων)</label>
-        <div id="pjContacts"></div>
-        <button type="button" id="addContactBtn" class="btn-outline" style="margin-top:2px; font-size:12px; padding:6px 10px; width:auto; display:inline-flex;">+ Προσθήκη επαφής</button>
-      </div>
-      <div class="field">
-        <label>Επιπλέον στοιχεία (π.χ. Πολεοδομική Άδεια, Αρ. πρωτοκόλλου…) — με δυνατότητα επισύναψης αρχείου ανά γραμμή</label>
-        <div id="pjFields"></div>
-        <button type="button" id="addFieldBtn" class="btn-outline" style="margin-top:2px; font-size:12px; padding:6px 10px; width:auto; display:inline-flex;">+ Προσθήκη γραμμής</button>
-      </div>
+
       <div class="err-text" id="pjError" style="display:none;"></div>
       <button class="btn-submit" style="background:#C1571F;" id="pjSubmit">Δημιουργία έργου</button>
     </div>
@@ -410,6 +424,7 @@ function fileNameFromPath(path) {
   return path.split("/").pop().replace(/^\d+_/, "");
 }
 const PROJECT_STATUS_LABELS = { active: "Ενεργό", on_hold: "Σε αναμονή", completed: "Ολοκληρωμένο", cancelled: "Ακυρωμένο" };
+const DOCUMENT_CATEGORIES = ["Σχέδια", "Άδειες", "Οικόπεδο", "Αίτηση ΦΠΑ", "Γνωστοποίηση εργοταξίου", "ΚΕΝΑΚ", "Άλλο"];
 
 async function loadData() {
   loading = true;
@@ -1162,8 +1177,18 @@ function openProjectModal(project) {
     : [];
   renderFieldRows();
   applyProjectLock();
+  switchPjTab("info");
   openModal("projectModalOverlay");
 }
+
+function switchPjTab(tab) {
+  document.getElementById("pjTabInfoBtn").classList.toggle("active", tab === "info");
+  document.getElementById("pjTabDocsBtn").classList.toggle("active", tab === "docs");
+  document.getElementById("pjTabInfoPanel").style.display = tab === "info" ? "block" : "none";
+  document.getElementById("pjTabDocsPanel").style.display = tab === "docs" ? "block" : "none";
+}
+document.getElementById("pjTabInfoBtn").addEventListener("click", () => switchPjTab("info"));
+document.getElementById("pjTabDocsBtn").addEventListener("click", () => switchPjTab("docs"));
 
 function updatePjBudgetPreview() {
   const net = parseFloat(document.getElementById("pjBudget").value) || 0;
@@ -1179,7 +1204,7 @@ function applyProjectLock() {
   document.getElementById("pjEditBtn").classList.toggle("active", !pjLocked);
   const modalBody = document.querySelector("#projectModalOverlay .modal-body");
   modalBody.querySelectorAll("input, select, button").forEach(el => {
-    if (el.id === "pjLockBtn" || el.id === "pjEditBtn") return;
+    if (el.id === "pjLockBtn" || el.id === "pjEditBtn" || el.id === "pjTabInfoBtn" || el.id === "pjTabDocsBtn") return;
     el.disabled = pjLocked;
   });
   document.getElementById("pjSubmit").style.display = pjLocked ? "none" : "block";
@@ -1235,12 +1260,21 @@ function renderFieldRows() {
   if (pjLocked) {
     addBtn.style.display = "none";
     const valid = pjFieldRows.filter(f => f.label.trim());
-    container.innerHTML = valid.length === 0
-      ? `<div class="empty-note" style="padding:2px 0;">Καμία επιπλέον πληροφορία.</div>`
-      : `<div class="kv-list">${valid.map(f => {
+    if (valid.length === 0) {
+      container.innerHTML = `<div class="empty-note" style="padding:2px 0;">Κανένα έγγραφο.</div>`;
+      return;
+    }
+    const grouped = {};
+    valid.forEach(f => { (grouped[f.label] = grouped[f.label] || []).push(f); });
+    const orderedCats = [...DOCUMENT_CATEGORIES, ...Object.keys(grouped).filter(c => !DOCUMENT_CATEGORIES.includes(c))];
+    container.innerHTML = orderedCats.filter(c => grouped[c]).map(cat => `
+      <div class="doc-category">
+        <div class="doc-category-title">${escapeHTML(cat)}</div>
+        ${grouped[cat].map(f => {
           const fileHref = (f.storagePath && !f.removeFile) ? supabase.storage.from("project-files").getPublicUrl(f.storagePath).data.publicUrl : null;
-          return `<div class="kv-item"><b>${escapeHTML(f.label)}:</b> ${escapeHTML(f.value || "—")}${fileHref ? ` · <a href="${fileHref}" target="_blank" rel="noopener" title="${fmtBytes(f.fileSize)}">${escapeHTML(fileNameFromPath(f.storagePath))}</a>` : ""}</div>`;
-        }).join("")}</div>`;
+          return `<div class="kv-item">${escapeHTML(f.value || "—")}${fileHref ? ` · <a href="${fileHref}" target="_blank" rel="noopener" title="${fmtBytes(f.fileSize)}">${escapeHTML(fileNameFromPath(f.storagePath))}</a>` : ""}</div>`;
+        }).join("")}
+      </div>`).join("");
     return;
   }
   addBtn.style.display = "inline-flex";
@@ -1253,15 +1287,16 @@ function renderFieldRows() {
     const fileControl = fileName
       ? `<span class="kv-file-chip">${fileHref ? `<a href="${fileHref}" target="_blank" rel="noopener" title="${fileTitle}">${escapeHTML(fileName)}</a>` : `<span title="${fileTitle}">${escapeHTML(fileName)}</span>`}<button type="button" class="field-file-remove" data-idx="${i}" title="Αφαίρεση αρχείου">&#10005;</button></span>`
       : `<button type="button" class="kv-file-attach" data-idx="${i}" title="Επισύναψη αρχείου">&#128206;</button>`;
+    const categoryOptions = DOCUMENT_CATEGORIES.includes(f.label) || !f.label ? DOCUMENT_CATEGORIES : [f.label, ...DOCUMENT_CATEGORIES];
     return `
     <div class="kv-row">
-      <input class="field-label" data-idx="${i}" placeholder="Ονομασία (π.χ. Πολεοδομική Άδεια)" value="${escapeHTML(f.label)}">
-      <input class="field-value" data-idx="${i}" placeholder="Τιμή (π.χ. Αρ. 123/2024)" value="${escapeHTML(f.value)}">
+      <select class="field-label" data-idx="${i}">${categoryOptions.map(c => `<option value="${escapeHTML(c)}" ${f.label === c ? "selected" : ""}>${escapeHTML(c)}</option>`).join("")}</select>
+      <input class="field-value" data-idx="${i}" placeholder="π.χ. Αρ. 123/2024" value="${escapeHTML(f.value)}">
       <div>${fileControl}<input type="file" class="field-file-input" data-idx="${i}" style="display:none;"></div>
       <button type="button" class="contact-remove" data-idx="${i}">&#10005;</button>
     </div>`;
   }).join("");
-  container.querySelectorAll(".field-label").forEach(inp => inp.addEventListener("input", (e) => { pjFieldRows[+e.target.getAttribute("data-idx")].label = e.target.value; }));
+  container.querySelectorAll(".field-label").forEach(sel => sel.addEventListener("change", (e) => { pjFieldRows[+e.target.getAttribute("data-idx")].label = e.target.value; }));
   container.querySelectorAll(".field-value").forEach(inp => inp.addEventListener("input", (e) => { pjFieldRows[+e.target.getAttribute("data-idx")].value = e.target.value; }));
   container.querySelectorAll(".kv-file-attach").forEach(btn => btn.addEventListener("click", (e) => {
     container.querySelector(`.field-file-input[data-idx="${e.currentTarget.getAttribute("data-idx")}"]`).click();
@@ -1287,7 +1322,7 @@ function renderFieldRows() {
 }
 
 document.getElementById("addFieldBtn").addEventListener("click", () => {
-  pjFieldRows.push({ label: "", value: "", storagePath: null, fileSize: null, pendingFile: null, removeFile: false });
+  pjFieldRows.push({ label: DOCUMENT_CATEGORIES[0], value: "", storagePath: null, fileSize: null, pendingFile: null, removeFile: false });
   renderFieldRows();
 });
 
