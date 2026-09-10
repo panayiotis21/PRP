@@ -147,7 +147,6 @@
     <div id="projectList"><div class="loading-note">Φόρτωση…</div></div>
     <div id="sidebarFooter">
       <button class="btn-outline" id="allInvoicesBtn" style="margin-bottom:8px;">Όλα τα τιμολόγια</button>
-      <button class="btn-outline" id="companyExpensesBtn" style="margin-bottom:8px;">Έξοδα Εταιρείας</button>
       <button class="btn-outline" id="newProjectBtn">+ Νέο έργο</button>
     </div>
   </div>
@@ -177,13 +176,6 @@
       <button class="modal-close" data-close="entryModalOverlay">&#10005;</button>
     </div>
     <div class="modal-body">
-      <div class="field" id="enScopeField" style="display:none;">
-        <label>Τύπος εξόδου</label>
-        <div class="filter-group">
-          <button type="button" class="filter-btn" id="scopeProjectBtn" data-scope="project">Έξοδα Έργου</button>
-          <button type="button" class="filter-btn" id="scopeCompanyBtn" data-scope="company">Έξοδα Εταιρείας</button>
-        </div>
-      </div>
       <div class="field" id="enProjectField">
         <label>Έργο(-α)</label>
         <div id="enProjectAllocations"></div>
@@ -225,7 +217,6 @@ const SUPABASE_KEY = "sb_publishable_m3bHePKjmR-GsajavaTIsw_pJLQqw2f";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const CATEGORIES_EXP = ["Υλικά", "Εργατικά", "Υπεργολάβοι", "Μηχανήματα", "Μεταφορικά", "ΦΠΑ", "Φόρος", "Κεφάλαιο", "Τραπεζικά Έξοδα", "Λοιπά"];
-const COMPANY_CATEGORIES = ["Μισθός", "Κοινωνικές Ασφαλίσεις", "Βενζίνη", "Τηλέφωνο", "Νερό", "Internet", "Ηλεκτρισμός", "Αναλώσιμα", "Φαγητό/Ποτά", "Λοιπά"];
 const CATEGORIES_INC = ["Πιστοποίηση Εργασιών", "Προκαταβολή", "Κεφάλαιο", "Λοιπά Έσοδα"];
 const PAYMENT_METHODS = ["Τραπεζικό έμβασμα", "Επιταγή", "Μετρητά"];
 const VAT_RATE_OPTIONS = [19, 5, 3, 0];
@@ -234,13 +225,6 @@ let projects = [];
 let entries = [];
 let activeProjectId = null;
 let showAllInvoices = false;
-let showCompanyExpenses = false;
-let companyFilterSearch = "";
-let companyFilterCategory = "all";
-let companyFilterPaymentMethod = "all";
-let companyFilterStatus = "all";
-let companyFilterDateFrom = "";
-let companyFilterDateTo = "";
 let filterType = "all";
 let filterStatus = "all";
 let filterCategory = "all";
@@ -261,7 +245,6 @@ let supplierSearch = "";
 let entryModalType = "income";
 let vatLines = [];
 let allocations = [];
-let expenseScope = "project";
 let saveError = false;
 let loading = true;
 let charts = {};
@@ -286,7 +269,7 @@ function mapEntry(row) {
     invoiceNumber: row.invoice_number, paid: row.paid, paidDate: row.paid_date,
     paymentMethod: row.payment_method, splitGroupId: row.split_group_id,
     splitPercent: row.split_percent !== null && row.split_percent !== undefined ? Number(row.split_percent) : null,
-    vatLines: row.vat_lines || null, expenseScope: row.expense_scope || "project"
+    vatLines: row.vat_lines || null
   };
 }
 function mapProject(row) {
@@ -366,7 +349,7 @@ function renderSidebar() {
   }
   list.innerHTML = projects.map((p, i) => {
     const st = computeStats(entries.filter(e => e.projectId === p.id));
-    const active = !showAllInvoices && !showCompanyExpenses && p.id === activeProjectId;
+    const active = !showAllInvoices && p.id === activeProjectId;
     return `
       <button class="project-item ${active ? "active" : ""}" data-project-id="${p.id}">
         <div class="code num">Έ-${String(i + 1).padStart(2, "0")}</div>
@@ -375,7 +358,7 @@ function renderSidebar() {
       </button>`;
   }).join("");
   list.querySelectorAll("[data-project-id]").forEach(btn => {
-    btn.addEventListener("click", () => { activeProjectId = btn.getAttribute("data-project-id"); showAllInvoices = false; showCompanyExpenses = false; render(); });
+    btn.addEventListener("click", () => { activeProjectId = btn.getAttribute("data-project-id"); showAllInvoices = false; render(); });
   });
 }
 
@@ -387,11 +370,6 @@ function renderMain() {
 
   if (showAllInvoices) {
     renderAllInvoices(main, errHTML);
-    return;
-  }
-
-  if (showCompanyExpenses) {
-    renderCompanyExpenses(main, errHTML);
     return;
   }
 
@@ -723,7 +701,7 @@ function renderAllInvoices(main, errHTML) {
           ${all.map(e => `
             <tr>
               <td class="num" style="color:#6E6A5F; white-space:nowrap;">${fmtDate(e.date)}</td>
-              <td style="color:#6E6A5F;">${escapeHTML(projectById[e.projectId] || ((e.expenseScope || "project") === "company" ? "Εταιρικό" : "—"))}</td>
+              <td style="color:#6E6A5F;">${escapeHTML(projectById[e.projectId] || "—")}</td>
               <td><div class="desc-main">${escapeHTML(e.description)}</div>${e.invoiceNumber ? `<div class="desc-sub">Τιμ. ${escapeHTML(e.invoiceNumber)}</div>` : ""}${e.splitGroupId ? `<div class="split-badge">Διαχωρισμένο · ${e.splitPercent}%</div>` : ""}</td>
               <td style="color:#6E6A5F;">${escapeHTML(e.supplier || "—")}</td>
               <td style="color:#6E6A5F;">${escapeHTML(e.paymentMethod || "—")}</td>
@@ -763,127 +741,6 @@ function renderAllInvoices(main, errHTML) {
   if (allDateToEl) allDateToEl.addEventListener("change", (e) => { allFilterDateTo = e.target.value; render(); });
   const allPaymentMethodEl = document.getElementById("allPaymentMethodFilter");
   if (allPaymentMethodEl) allPaymentMethodEl.addEventListener("change", (e) => { allFilterPaymentMethod = e.target.value; render(); });
-}
-
-function renderCompanyExpenses(main, errHTML) {
-  let list = entries.filter(e => e.type === "expense" && (e.expenseScope || "project") === "company");
-  if (companyFilterCategory !== "all") list = list.filter(e => e.category === companyFilterCategory);
-  if (companyFilterPaymentMethod !== "all") list = list.filter(e => e.paymentMethod === companyFilterPaymentMethod);
-  if (companyFilterStatus !== "all") list = list.filter(e => (companyFilterStatus === "paid" ? e.paid : !e.paid));
-  if (companyFilterDateFrom) list = list.filter(e => e.date >= companyFilterDateFrom);
-  if (companyFilterDateTo) list = list.filter(e => e.date <= companyFilterDateTo);
-  if (companyFilterSearch.trim()) {
-    const q = companyFilterSearch.trim().toLowerCase();
-    list = list.filter(e =>
-      (e.description || "").toLowerCase().includes(q) ||
-      (e.supplier || "").toLowerCase().includes(q) ||
-      (e.invoiceNumber || "").toLowerCase().includes(q) ||
-      (e.category || "").toLowerCase().includes(q)
-    );
-  }
-  list = list.sort((a, b) => (a.date < b.date ? 1 : -1));
-
-  const allCompany = entries.filter(e => e.type === "expense" && (e.expenseScope || "project") === "company");
-  const totalNet = allCompany.reduce((s, e) => s + e.net, 0);
-  const totalVat = allCompany.reduce((s, e) => s + e.vat, 0);
-  const pendingTotal = allCompany.filter(e => !e.paid).reduce((s, e) => s + e.net + e.vat, 0);
-  const categories = [...new Set(allCompany.map(e => e.category).filter(Boolean))];
-
-  main.innerHTML = `
-    ${errHTML}
-    <div class="header-row">
-      <div>
-        <div class="page-title disp">Έξοδα Εταιρείας</div>
-        <div class="page-sub" style="margin-bottom:0;">Λειτουργικά έξοδα που δεν ανήκουν σε συγκεκριμένο έργο.</div>
-      </div>
-      <button class="btn-expense" id="companyAddExpenseBtn">+ Έξοδο</button>
-    </div>
-    <div id="statBar" style="margin-top:22px;">
-      <div class="stat-card">
-        <div class="row"><span class="label">Σύνολο εξόδων</span></div>
-        <div class="disp num value neg">${fmt(totalNet + totalVat)} €</div>
-        <div class="foot">καθαρή αξία + ΦΠΑ</div>
-      </div>
-      <div class="stat-card">
-        <div class="row"><span class="label">ΦΠΑ</span></div>
-        <div class="disp num value">${fmt(totalVat)} €</div>
-        <div class="foot">σύνολο ΦΠΑ εξόδων εταιρείας</div>
-      </div>
-      <div class="stat-card">
-        <div class="row"><span class="label">Εκκρεμή</span></div>
-        <div class="disp num value" style="color:#8A6D1E;">${fmt(pendingTotal)} €</div>
-        <div class="foot">μη εξοφλημένα</div>
-      </div>
-    </div>
-    <div class="filter-row2" style="margin-top:22px;">
-      <input class="filter-input" id="companySearchInput" type="text" placeholder="Αναζήτηση…" value="${escapeHTML(companyFilterSearch)}" style="min-width:180px;">
-      <select class="filter-input" id="companyCategoryFilter">
-        <option value="all">Όλες οι κατηγορίες</option>
-        ${categories.map(c => `<option value="${escapeHTML(c)}" ${companyFilterCategory === c ? "selected" : ""}>${escapeHTML(c)}</option>`).join("")}
-      </select>
-      <select class="filter-input" id="companyPaymentMethodFilter">
-        <option value="all">Όλοι οι τρόποι πληρωμής</option>
-        ${PAYMENT_METHODS.map(m => `<option value="${m}" ${companyFilterPaymentMethod === m ? "selected" : ""}>${m}</option>`).join("")}
-      </select>
-      <div class="filter-group">
-        <button class="filter-btn ${companyFilterStatus === "all" ? "active" : ""}" data-company-status="all">Όλες</button>
-        <button class="filter-btn ${companyFilterStatus === "paid" ? "active" : ""}" data-company-status="paid">Εξοφλημένα</button>
-        <button class="filter-btn ${companyFilterStatus === "pending" ? "active" : ""}" data-company-status="pending">Εκκρεμή</button>
-      </div>
-      <span class="filter-date-label">Από</span>
-      <input class="filter-input" id="companyDateFromInput" type="date" value="${companyFilterDateFrom}">
-      <span class="filter-date-label">Έως</span>
-      <input class="filter-input" id="companyDateToInput" type="date" value="${companyFilterDateTo}">
-    </div>
-    ${list.length === 0 ? `<div class="empty-table">Δεν βρέθηκαν έξοδα εταιρείας με αυτά τα φίλτρα.</div>` : `
-    <div id="entriesWrap">
-      <table>
-        <thead><tr><th>Ημ/νία</th><th>Περιγραφή</th><th>Κατηγορία</th><th>Προμηθευτής</th><th>Πληρωμή</th><th class="right">Καθαρή αξία</th><th class="right">ΦΠΑ</th><th class="right">Σύνολο</th><th>Κατάσταση</th><th></th></tr></thead>
-        <tbody>
-          ${list.map(e => `
-            <tr>
-              <td class="num" style="color:#6E6A5F; white-space:nowrap;">${fmtDate(e.date)}</td>
-              <td><div class="desc-main">${escapeHTML(e.description)}</div>${e.invoiceNumber ? `<div class="desc-sub">Τιμ. ${escapeHTML(e.invoiceNumber)}</div>` : ""}</td>
-              <td style="color:#6E6A5F;">${escapeHTML(e.category)}</td>
-              <td style="color:#6E6A5F;">${escapeHTML(e.supplier || "—")}</td>
-              <td style="color:#6E6A5F;">${escapeHTML(e.paymentMethod || "—")}</td>
-              <td class="num right">${fmt(e.net)} €</td>
-              <td class="num right" style="color:#8A8676;">${fmt(e.vat)} €${vatRateLabel(e) ? `<div class="desc-sub" style="text-align:right;">${vatRateLabel(e)}</div>` : ""}</td>
-              <td class="num right amt-neg">−${fmt(e.net + e.vat)} €</td>
-              <td><button class="status-btn ${e.paid ? "status-paid" : "status-pending"}" data-toggle-paid="${e.id}">${e.paid ? "Εξοφλήθηκε" : "Εκκρεμεί"}</button></td>
-              <td class="right"><button class="del-btn" data-delete-entry="${e.id}">&#10005;</button></td>
-            </tr>`).join("")}
-        </tbody>
-      </table>
-    </div>`}
-  `;
-
-  document.getElementById("companyAddExpenseBtn").addEventListener("click", () => {
-    openEntryModal("expense");
-    expenseScope = "company";
-    updateScopeUI();
-    updateCategoryField();
-  });
-  document.querySelectorAll("[data-company-status]").forEach(btn => btn.addEventListener("click", () => { companyFilterStatus = btn.getAttribute("data-company-status"); render(); }));
-  const cSearchEl = document.getElementById("companySearchInput");
-  if (cSearchEl) {
-    cSearchEl.addEventListener("input", (e) => {
-      companyFilterSearch = e.target.value;
-      render();
-      const el = document.getElementById("companySearchInput");
-      if (el) { el.focus(); el.selectionStart = el.selectionEnd = companyFilterSearch.length; }
-    });
-  }
-  const cCategoryEl = document.getElementById("companyCategoryFilter");
-  if (cCategoryEl) cCategoryEl.addEventListener("change", (e) => { companyFilterCategory = e.target.value; render(); });
-  const cPaymentEl = document.getElementById("companyPaymentMethodFilter");
-  if (cPaymentEl) cPaymentEl.addEventListener("change", (e) => { companyFilterPaymentMethod = e.target.value; render(); });
-  const cDateFromEl = document.getElementById("companyDateFromInput");
-  if (cDateFromEl) cDateFromEl.addEventListener("change", (e) => { companyFilterDateFrom = e.target.value; render(); });
-  const cDateToEl = document.getElementById("companyDateToInput");
-  if (cDateToEl) cDateToEl.addEventListener("change", (e) => { companyFilterDateTo = e.target.value; render(); });
-  document.querySelectorAll("[data-toggle-paid]").forEach(btn => btn.addEventListener("click", () => togglePaid(btn.getAttribute("data-toggle-paid"))));
-  document.querySelectorAll("[data-delete-entry]").forEach(btn => btn.addEventListener("click", () => deleteEntry(btn.getAttribute("data-delete-entry"))));
 }
 
 function vatRateLabel(e) {
@@ -942,7 +799,7 @@ async function addEntries(entryList) {
     invoice_number: entry.invoiceNumber, paid: entry.paid, paid_date: entry.paidDate || null,
     payment_method: entry.paymentMethod || null, split_group_id: entry.splitGroupId || null,
     split_percent: entry.splitPercent !== null && entry.splitPercent !== undefined ? entry.splitPercent : null,
-    vat_lines: entry.vatLines || null, expense_scope: entry.expenseScope || "project"
+    vat_lines: entry.vatLines || null, expense_scope: "project"
   }));
   const { data, error } = await supabase.from("entries").insert(rows).select();
   if (error) { saveError = true; render(); return; }
@@ -976,13 +833,6 @@ document.querySelectorAll(".modal-overlay").forEach(ov => ov.addEventListener("c
 
 document.getElementById("allInvoicesBtn").addEventListener("click", () => {
   showAllInvoices = true;
-  showCompanyExpenses = false;
-  render();
-});
-
-document.getElementById("companyExpensesBtn").addEventListener("click", () => {
-  showCompanyExpenses = true;
-  showAllInvoices = false;
   render();
 });
 
@@ -1066,9 +916,6 @@ function openEntryModal(type) {
   entryModalType = type;
   const isIncome = type === "income";
   document.getElementById("entryModalTitle").textContent = isIncome ? "Νέο έσοδο" : "Νέο έξοδο";
-  document.getElementById("enScopeField").style.display = isIncome ? "none" : "block";
-  expenseScope = "project";
-  updateScopeUI();
   const defaultProjectId = (activeProjectId && projects.some(p => p.id === activeProjectId)) ? activeProjectId : (projects[0] ? projects[0].id : "");
   allocations = defaultProjectId ? [{ projectId: defaultProjectId, percent: 100 }] : [];
   renderAllocations();
@@ -1094,26 +941,16 @@ function openEntryModal(type) {
   openModal("entryModalOverlay");
 }
 
-function updateScopeUI() {
-  document.getElementById("scopeProjectBtn").classList.toggle("active", expenseScope === "project");
-  document.getElementById("scopeCompanyBtn").classList.toggle("active", expenseScope === "company");
-  document.getElementById("enProjectField").style.display = expenseScope === "company" ? "none" : "block";
-  document.getElementById("enSupplierField").style.display = (entryModalType === "expense") ? "block" : "none";
-}
-
-document.getElementById("scopeProjectBtn").addEventListener("click", () => { expenseScope = "project"; updateScopeUI(); updateCategoryField(); });
-document.getElementById("scopeCompanyBtn").addEventListener("click", () => { expenseScope = "company"; updateScopeUI(); updateCategoryField(); });
-
-function baseCategoriesFor(type, scope) {
+function baseCategoriesFor(type) {
   if (type === "income") return CATEGORIES_INC;
-  return scope === "company" ? COMPANY_CATEGORIES : CATEGORIES_EXP;
+  return CATEGORIES_EXP;
 }
 
 function updateCategoryField() {
   const isIncome = entryModalType === "income";
   const selectEl = document.getElementById("enCategory");
   const inputEl = document.getElementById("enCategoryInput");
-  const base = baseCategoriesFor(entryModalType, expenseScope);
+  const base = baseCategoriesFor(entryModalType);
   if (isIncome) {
     selectEl.style.display = "block";
     inputEl.style.display = "none";
@@ -1121,7 +958,7 @@ function updateCategoryField() {
   } else {
     selectEl.style.display = "none";
     inputEl.style.display = "block";
-    const used = [...new Set(entries.filter(e => e.type === "expense" && (e.expenseScope || "project") === expenseScope && e.category).map(e => e.category))];
+    const used = [...new Set(entries.filter(e => e.type === "expense" && e.category).map(e => e.category))];
     const combined = [...new Set([...base, ...used])];
     document.getElementById("enCategoryList").innerHTML = combined.map(c => `<option value="${escapeHTML(c)}"></option>`).join("");
     inputEl.value = base[0] || "";
@@ -1187,13 +1024,10 @@ document.getElementById("enSubmit").addEventListener("click", () => {
   const description = document.getElementById("enDescription").value.trim();
   const errEl = document.getElementById("enError");
   const isIncome = entryModalType === "income";
-  const isCompanyExpense = !isIncome && expenseScope === "company";
-  if (!isCompanyExpense) {
-    if (allocations.length === 0) { errEl.textContent = "Δεν υπάρχει κανένα έργο. Δημιούργησε πρώτα ένα έργο."; errEl.style.display = "block"; return; }
-    if (allocations.some(a => !a.projectId)) { errEl.textContent = "Επίλεξε έργο σε κάθε γραμμή."; errEl.style.display = "block"; return; }
-    const totalPercent = allocations.reduce((s, a) => s + (parseFloat(a.percent) || 0), 0);
-    if (Math.abs(totalPercent - 100) > 0.05) { errEl.textContent = `Τα ποσοστά πρέπει να αθροίζουν σε 100% (τώρα: ${Math.round(totalPercent * 10) / 10}%).`; errEl.style.display = "block"; return; }
-  }
+  if (allocations.length === 0) { errEl.textContent = "Δεν υπάρχει κανένα έργο. Δημιούργησε πρώτα ένα έργο."; errEl.style.display = "block"; return; }
+  if (allocations.some(a => !a.projectId)) { errEl.textContent = "Επίλεξε έργο σε κάθε γραμμή."; errEl.style.display = "block"; return; }
+  const totalPercent = allocations.reduce((s, a) => s + (parseFloat(a.percent) || 0), 0);
+  if (Math.abs(totalPercent - 100) > 0.05) { errEl.textContent = `Τα ποσοστά πρέπει να αθροίζουν σε 100% (τώρα: ${Math.round(totalPercent * 10) / 10}%).`; errEl.style.display = "block"; return; }
   if (!description) { errEl.textContent = "Δώσε περιγραφή."; errEl.style.display = "block"; return; }
   const categoryCheck = isIncome ? document.getElementById("enCategory").value : document.getElementById("enCategoryInput").value.trim();
   if (!categoryCheck) { errEl.textContent = "Δώσε κατηγορία."; errEl.style.display = "block"; return; }
@@ -1211,17 +1045,6 @@ document.getElementById("enSubmit").addEventListener("click", () => {
   const paymentMethod = document.getElementById("enPaymentMethod").value;
   const paidDate = paid ? todayISO() : "";
 
-  if (isCompanyExpense) {
-    addEntries([{
-      projectId: null, type: "expense", date, description, category,
-      net: Math.round((net + Number.EPSILON) * 100) / 100, vat: Math.round((vat + Number.EPSILON) * 100) / 100, vatRate,
-      vatLines: cleanLines, supplier, invoiceNumber, paid, paidDate, paymentMethod,
-      splitGroupId: null, splitPercent: null, expenseScope: "company"
-    }]);
-    closeModal("entryModalOverlay");
-    return;
-  }
-
   const isSplit = allocations.length > 1;
   const splitGroupId = isSplit ? ("split-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7)) : null;
   const entryList = allocations.map(a => {
@@ -1231,7 +1054,7 @@ document.getElementById("enSubmit").addEventListener("click", () => {
     return {
       projectId: a.projectId, type: entryModalType, date, description, category, net: partNet, vat: partVat, vatRate,
       vatLines: cleanLines, supplier, invoiceNumber, paid, paidDate, paymentMethod,
-      splitGroupId, splitPercent: isSplit ? pct : null, expenseScope: "project"
+      splitGroupId, splitPercent: isSplit ? pct : null
     };
   });
   addEntries(entryList);
