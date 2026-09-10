@@ -243,6 +243,10 @@
         <div id="pjFields"></div>
         <button type="button" id="addFieldBtn" class="btn-outline" style="margin-top:2px; font-size:12px; padding:6px 10px; width:auto; display:inline-flex;">+ Προσθήκη γραμμής</button>
       </div>
+      <div class="field">
+        <label>Αρχεία έργου</label>
+        <div id="pjFilesList"></div>
+      </div>
       <div class="err-text" id="pjError" style="display:none;"></div>
       <button class="btn-submit" style="background:#C1571F;" id="pjSubmit">Δημιουργία έργου</button>
     </div>
@@ -628,23 +632,8 @@ function renderMain() {
     </div>
     ${entriesTableHTML(filtered)}
     ${supplierBreakdownHTML(projectEntries)}
-    <div class="chart-section no-print">
-      <div class="chart-title">Αρχεία έργου</div>
-      ${filesSectionHTML(activeProjectId)}
-    </div>
   `;
 
-  const fileUploadBtn = document.getElementById("fileUploadBtn");
-  if (fileUploadBtn) fileUploadBtn.addEventListener("click", () => {
-    const labelEl = document.getElementById("fileLabelInput");
-    const inputEl = document.getElementById("fileUploadInput");
-    const statusEl = document.getElementById("fileUploadStatus");
-    const file = inputEl.files[0];
-    if (!file) { statusEl.textContent = "Επίλεξε πρώτα ένα αρχείο."; return; }
-    const label = labelEl.value.trim() || file.name;
-    uploadProjectFile(activeProjectId, file, label);
-  });
-  document.querySelectorAll("[data-delete-file]").forEach(btn => btn.addEventListener("click", () => deleteProjectFile(btn.getAttribute("data-delete-file"))));
   document.getElementById("editProjectBtn").addEventListener("click", () => openProjectModal(activeProject));
   document.getElementById("exportCsvBtn").addEventListener("click", () => exportProjectCSV(activeProject, projectEntries));
   document.getElementById("printReportBtn").addEventListener("click", () => window.print());
@@ -976,7 +965,7 @@ function filesSectionHTML(projectId) {
   `;
 }
 
-async function uploadProjectFile(projectId, file, label) {
+async function uploadProjectFile(projectId, file, label, onDone) {
   const path = `${projectId}/${Date.now()}_${file.name.replace(/[\/\\]/g, "_")}`;
   const { error: uploadError } = await supabase.storage.from("project-files").upload(path, file);
   if (uploadError) { saveError = true; render(); return; }
@@ -985,17 +974,37 @@ async function uploadProjectFile(projectId, file, label) {
   }).select().single();
   if (error) { saveError = true; render(); return; }
   projectFiles.push(mapFile(data));
-  render();
+  if (onDone) onDone(); else render();
 }
 
-async function deleteProjectFile(fileId) {
+async function deleteProjectFile(fileId, onDone) {
   const file = projectFiles.find(f => f.id === fileId);
   if (!file) return;
   await supabase.storage.from("project-files").remove([file.storagePath]);
   const { error } = await supabase.from("project_files").delete().eq("id", fileId);
   if (error) { saveError = true; render(); return; }
   projectFiles = projectFiles.filter(f => f.id !== fileId);
-  render();
+  if (onDone) onDone(); else render();
+}
+
+function renderModalFiles(projectId) {
+  const wrap = document.getElementById("pjFilesList");
+  if (!projectId) {
+    wrap.innerHTML = `<div class="empty-note" style="padding:8px 0;">Αποθήκευσε πρώτα το έργο για να προσθέσεις αρχεία.</div>`;
+    return;
+  }
+  wrap.innerHTML = filesSectionHTML(projectId);
+  const fileUploadBtn = document.getElementById("fileUploadBtn");
+  if (fileUploadBtn) fileUploadBtn.addEventListener("click", () => {
+    const labelEl = document.getElementById("fileLabelInput");
+    const inputEl = document.getElementById("fileUploadInput");
+    const statusEl = document.getElementById("fileUploadStatus");
+    const file = inputEl.files[0];
+    if (!file) { statusEl.textContent = "Επίλεξε πρώτα ένα αρχείο."; return; }
+    const label = labelEl.value.trim() || file.name;
+    uploadProjectFile(projectId, file, label, () => renderModalFiles(projectId));
+  });
+  document.querySelectorAll("[data-delete-file]").forEach(btn => btn.addEventListener("click", () => deleteProjectFile(btn.getAttribute("data-delete-file"), () => renderModalFiles(projectId))));
 }
 
 function csvEscape(v) {
@@ -1163,6 +1172,7 @@ function openProjectModal(project) {
     ? fields.filter(f => f.projectId === project.id).map(f => ({ label: f.label, value: f.value || "" }))
     : [];
   renderFieldRows();
+  renderModalFiles(project ? project.id : null);
   openModal("projectModalOverlay");
 }
 
