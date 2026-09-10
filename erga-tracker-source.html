@@ -234,18 +234,20 @@
         <div class="field"><label>Ημ/νία έναρξης (προαιρετικό)</label><input id="pjStartDate" type="date"></div>
         <div class="field"><label>Αναμ. ημ/νία λήξης (προαιρετικό)</label><input id="pjEndDate" type="date"></div>
       </div>
-      <div class="field-row">
-        <div class="field">
-          <label>Κατάσταση</label>
-          <select id="pjStatus">
-            <option value="active">Ενεργό</option>
-            <option value="on_hold">Σε αναμονή</option>
-            <option value="completed">Ολοκληρωμένο</option>
-            <option value="cancelled">Ακυρωμένο</option>
-          </select>
-        </div>
-        <div class="field"><label>Προϋπολογισμός € (προαιρετικό)</label><input id="pjBudget" type="number"></div>
+      <div class="field">
+        <label>Κατάσταση</label>
+        <select id="pjStatus">
+          <option value="active">Ενεργό</option>
+          <option value="on_hold">Σε αναμονή</option>
+          <option value="completed">Ολοκληρωμένο</option>
+          <option value="cancelled">Ακυρωμένο</option>
+        </select>
       </div>
+      <div class="field-row">
+        <div class="field"><label>Προϋπολογισμός χωρίς ΦΠΑ € (προαιρετικό)</label><input id="pjBudget" type="number"></div>
+        <div class="field"><label>Συντελεστής ΦΠΑ</label><select id="pjBudgetVat"></select></div>
+      </div>
+      <div class="total-box"><span style="color:#6E6A5F;">Προϋπολογισμός με ΦΠΑ</span><span class="num" style="font-weight:600;" id="pjBudgetTotalPreview">0,00 €</span></div>
       <div class="field-row">
         <div class="field"><label>ΑΦΜ πελάτη (προαιρετικό)</label><input id="pjClientVat"></div>
         <div class="field"><label>Αριθμός συμβολαίου (προαιρετικό)</label><input id="pjContractNumber"></div>
@@ -388,6 +390,7 @@ function mapEntry(row) {
 function mapProject(row) {
   return {
     id: row.id, name: row.name, address: row.address, budget: Number(row.budget || 0),
+    budgetVatRate: row.budget_vat_rate !== null && row.budget_vat_rate !== undefined ? Number(row.budget_vat_rate) : 19,
     startDate: row.start_date, endDate: row.end_date, status: row.status || "active",
     clientVat: row.client_vat, contractNumber: row.contract_number,
     projectNumber: row.project_number !== null && row.project_number !== undefined ? Number(row.project_number) : null
@@ -588,7 +591,10 @@ function renderMain() {
   }
   if (activeProject.clientVat) metaParts.push(`ΑΦΜ πελάτη: ${escapeHTML(activeProject.clientVat)}`);
   if (activeProject.contractNumber) metaParts.push(`Αρ. συμβολαίου: ${escapeHTML(activeProject.contractNumber)}`);
-  if (activeProject.budget) metaParts.push(`Προϋπολογισμός: ${fmt(activeProject.budget)} €`);
+  if (activeProject.budget) {
+    const budgetVat = activeProject.budget * (activeProject.budgetVatRate || 0) / 100;
+    metaParts.push(`Προϋπολογισμός: ${fmt(activeProject.budget + budgetVat)} € με ΦΠΑ (${fmt(activeProject.budget)} € χωρίς ΦΠΑ, ${activeProject.budgetVatRate}%)`);
+  }
 
   main.innerHTML = `
     ${errHTML}
@@ -991,7 +997,8 @@ async function createProject(project, contactRows, fieldRows) {
   const { data, error } = await supabase.from("projects").insert({
     name: project.name, address: project.address || null, start_date: project.startDate || null,
     end_date: project.endDate || null, status: project.status, client_vat: project.clientVat || null,
-    contract_number: project.contractNumber || null, project_number: project.projectNumber, budget: project.budget
+    contract_number: project.contractNumber || null, project_number: project.projectNumber, budget: project.budget,
+    budget_vat_rate: project.budgetVatRate
   }).select().single();
   if (error) { saveError = true; render(); return; }
   const newProject = mapProject(data);
@@ -1006,7 +1013,8 @@ async function updateProject(id, project, contactRows, fieldRows) {
   const { data, error } = await supabase.from("projects").update({
     name: project.name, address: project.address || null, start_date: project.startDate || null,
     end_date: project.endDate || null, status: project.status, client_vat: project.clientVat || null,
-    contract_number: project.contractNumber || null, project_number: project.projectNumber, budget: project.budget
+    contract_number: project.contractNumber || null, project_number: project.projectNumber, budget: project.budget,
+    budget_vat_rate: project.budgetVatRate
   }).eq("id", id).select().single();
   if (error) { saveError = true; render(); return; }
   projects = projects.map(p => p.id === id ? mapProject(data) : p);
@@ -1137,6 +1145,10 @@ function openProjectModal(project) {
   document.getElementById("pjClientVat").value = project ? (project.clientVat || "") : "";
   document.getElementById("pjContractNumber").value = project ? (project.contractNumber || "") : "";
   document.getElementById("pjBudget").value = project && project.budget ? project.budget : "";
+  const budgetVatSelect = document.getElementById("pjBudgetVat");
+  budgetVatSelect.innerHTML = VAT_RATE_OPTIONS.map(r => `<option value="${r}">${r}%</option>`).join("");
+  budgetVatSelect.value = project ? project.budgetVatRate : 19;
+  updatePjBudgetPreview();
   document.getElementById("pjError").style.display = "none";
   pjLocked = !!project;
   pjContactRows = project
@@ -1153,6 +1165,14 @@ function openProjectModal(project) {
   applyProjectLock();
   openModal("projectModalOverlay");
 }
+
+function updatePjBudgetPreview() {
+  const net = parseFloat(document.getElementById("pjBudget").value) || 0;
+  const rate = parseFloat(document.getElementById("pjBudgetVat").value) || 0;
+  document.getElementById("pjBudgetTotalPreview").textContent = fmt(net + net * rate / 100) + " €";
+}
+document.getElementById("pjBudget").addEventListener("input", updatePjBudgetPreview);
+document.getElementById("pjBudgetVat").addEventListener("change", updatePjBudgetPreview);
 
 function applyProjectLock() {
   document.getElementById("pjLockField").style.display = editingProjectId ? "block" : "none";
@@ -1283,10 +1303,11 @@ document.getElementById("pjSubmit").addEventListener("click", () => {
   const clientVat = document.getElementById("pjClientVat").value.trim();
   const contractNumber = document.getElementById("pjContractNumber").value.trim();
   const budget = document.getElementById("pjBudget").value;
+  const budgetVatRate = parseFloat(document.getElementById("pjBudgetVat").value);
   const errEl = document.getElementById("pjError");
   if (!name) { errEl.textContent = "Δώσε όνομα έργου."; errEl.style.display = "block"; return; }
   if (startDate && endDate && endDate < startDate) { errEl.textContent = "Η ημ/νία λήξης δεν μπορεί να είναι πριν την έναρξη."; errEl.style.display = "block"; return; }
-  const projectData = { name, projectNumber, address, startDate, endDate, status, clientVat, contractNumber, budget: budget ? parseFloat(budget) : 0 };
+  const projectData = { name, projectNumber, address, startDate, endDate, status, clientVat, contractNumber, budget: budget ? parseFloat(budget) : 0, budgetVatRate };
   if (editingProjectId) {
     updateProject(editingProjectId, projectData, pjContactRows, pjFieldRows);
   } else {
