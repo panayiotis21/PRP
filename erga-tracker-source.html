@@ -162,6 +162,10 @@
     <div class="modal-body">
       <div class="field"><label>Όνομα έργου</label><input id="pjName" placeholder="π.χ. Οικοδομή Λεωφόρος Αθηνών"></div>
       <div class="field"><label>Πελάτης (προαιρετικό)</label><input id="pjClient"></div>
+      <div class="field-row">
+        <div class="field"><label>Τηλέφωνο (προαιρετικό)</label><input id="pjPhone" type="tel"></div>
+        <div class="field"><label>Email (προαιρετικό)</label><input id="pjEmail" type="email"></div>
+      </div>
       <div class="field"><label>Προϋπολογισμός € (προαιρετικό)</label><input id="pjBudget" type="number"></div>
       <div class="err-text" id="pjError" style="display:none;"></div>
       <button class="btn-submit" style="background:#C1571F;" id="pjSubmit">Δημιουργία έργου</button>
@@ -273,7 +277,7 @@ function mapEntry(row) {
   };
 }
 function mapProject(row) {
-  return { id: row.id, name: row.name, client: row.client, budget: Number(row.budget || 0) };
+  return { id: row.id, name: row.name, client: row.client, clientPhone: row.client_phone, clientEmail: row.client_email, budget: Number(row.budget || 0) };
 }
 
 async function loadData() {
@@ -426,6 +430,8 @@ function renderMain() {
 
   const metaParts = [];
   if (activeProject.client) metaParts.push(`Πελάτης: ${escapeHTML(activeProject.client)}`);
+  if (activeProject.clientPhone) metaParts.push(`Τηλ.: ${escapeHTML(activeProject.clientPhone)}`);
+  if (activeProject.clientEmail) metaParts.push(`Email: ${escapeHTML(activeProject.clientEmail)}`);
   if (activeProject.budget) metaParts.push(`Προϋπολογισμός: ${fmt(activeProject.budget)} €`);
 
   main.innerHTML = `
@@ -776,7 +782,7 @@ function entriesTableHTML(list) {
 }
 
 async function addProject(project) {
-  const { data, error } = await supabase.from("projects").insert({ name: project.name, client: project.client, budget: project.budget }).select().single();
+  const { data, error } = await supabase.from("projects").insert({ name: project.name, client: project.client, client_phone: project.clientPhone || null, client_email: project.clientEmail || null, budget: project.budget }).select().single();
   if (error) { saveError = true; render(); return; }
   projects.push(mapProject(data));
   activeProjectId = data.id;
@@ -839,6 +845,8 @@ document.getElementById("allInvoicesBtn").addEventListener("click", () => {
 document.getElementById("newProjectBtn").addEventListener("click", () => {
   document.getElementById("pjName").value = "";
   document.getElementById("pjClient").value = "";
+  document.getElementById("pjPhone").value = "";
+  document.getElementById("pjEmail").value = "";
   document.getElementById("pjBudget").value = "";
   document.getElementById("pjError").style.display = "none";
   openModal("projectModalOverlay");
@@ -847,10 +855,12 @@ document.getElementById("newProjectBtn").addEventListener("click", () => {
 document.getElementById("pjSubmit").addEventListener("click", () => {
   const name = document.getElementById("pjName").value.trim();
   const client = document.getElementById("pjClient").value.trim();
+  const clientPhone = document.getElementById("pjPhone").value.trim();
+  const clientEmail = document.getElementById("pjEmail").value.trim();
   const budget = document.getElementById("pjBudget").value;
   const errEl = document.getElementById("pjError");
   if (!name) { errEl.textContent = "Δώσε όνομα έργου."; errEl.style.display = "block"; return; }
-  addProject({ name, client, budget: budget ? parseFloat(budget) : 0 });
+  addProject({ name, client, clientPhone, clientEmail, budget: budget ? parseFloat(budget) : 0 });
   closeModal("projectModalOverlay");
 });
 
