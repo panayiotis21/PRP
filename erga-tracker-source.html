@@ -136,6 +136,12 @@
   .contact-remove { color: #B0AB98; font-size: 15px; text-align: center; }
   .contact-remove:hover { color: #A6402C; }
 
+  .kv-row { display: grid; grid-template-columns: 1fr 1fr 26px; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .kv-row input { padding: 8px 9px; border: 1px solid #D8D3C5; border-radius: 3px; font-size: 12.5px; background: #FFFFFF; color: #221F1A; width: 100%; }
+  .kv-list { font-size: 12.5px; color: #6E6A5F; }
+  .kv-list .kv-item { padding: 3px 0; }
+  .kv-list .kv-item b { color: #221F1A; }
+
   .contact-card { display: flex; flex-wrap: wrap; gap: 3px 14px; font-size: 12.5px; color: #6E6A5F; }
   .contact-card .c-name { font-weight: 600; color: #221F1A; }
 
@@ -223,11 +229,19 @@
         </div>
         <div class="field"><label>Προϋπολογισμός € (προαιρετικό)</label><input id="pjBudget" type="number"></div>
       </div>
-      <div class="field"><label>ΑΦΜ πελάτη (προαιρετικό)</label><input id="pjClientVat"></div>
+      <div class="field-row">
+        <div class="field"><label>ΑΦΜ πελάτη (προαιρετικό)</label><input id="pjClientVat"></div>
+        <div class="field"><label>Αριθμός συμβολαίου (προαιρετικό)</label><input id="pjContractNumber"></div>
+      </div>
       <div class="field">
         <label>Επαφές έργου (π.χ. πελάτης, μηχανικός, επιβλέπων)</label>
         <div id="pjContacts"></div>
         <button type="button" id="addContactBtn" class="btn-outline" style="margin-top:2px; font-size:12px; padding:6px 10px; width:auto; display:inline-flex;">+ Προσθήκη επαφής</button>
+      </div>
+      <div class="field">
+        <label>Επιπλέον στοιχεία (π.χ. Πολεοδομική Άδεια, Αρ. πρωτοκόλλου…)</label>
+        <div id="pjFields"></div>
+        <button type="button" id="addFieldBtn" class="btn-outline" style="margin-top:2px; font-size:12px; padding:6px 10px; width:auto; display:inline-flex;">+ Προσθήκη γραμμής</button>
       </div>
       <div class="err-text" id="pjError" style="display:none;"></div>
       <button class="btn-submit" style="background:#C1571F;" id="pjSubmit">Δημιουργία έργου</button>
@@ -298,12 +312,14 @@ const VAT_RATE_OPTIONS = [19, 5, 3, 0];
 let projects = [];
 let entries = [];
 let contacts = [];
+let fields = [];
+let projectFiles = [];
 let activeProjectId = null;
 let showAllInvoices = false;
 let sidebarStatusFilter = "open";
 let editingProjectId = null;
 let pjContactRows = [];
-let projectFilesCache = {};
+let pjFieldRows = [];
 let filterType = "all";
 let filterStatus = "all";
 let filterCategory = "all";
@@ -356,28 +372,41 @@ function mapProject(row) {
   return {
     id: row.id, name: row.name, address: row.address, budget: Number(row.budget || 0),
     startDate: row.start_date, endDate: row.end_date, status: row.status || "active",
-    clientVat: row.client_vat
+    clientVat: row.client_vat, contractNumber: row.contract_number
   };
 }
 function mapContact(row) {
   return { id: row.id, projectId: row.project_id, name: row.name, role: row.role, phone: row.phone, email: row.email };
+}
+function mapField(row) {
+  return { id: row.id, projectId: row.project_id, label: row.label, value: row.value };
+}
+function mapFile(row) {
+  return {
+    id: row.id, projectId: row.project_id, label: row.label, storagePath: row.storage_path, size: Number(row.size || 0),
+    url: supabase.storage.from("project-files").getPublicUrl(row.storage_path).data.publicUrl
+  };
 }
 const PROJECT_STATUS_LABELS = { active: "Ενεργό", on_hold: "Σε αναμονή", completed: "Ολοκληρωμένο", cancelled: "Ακυρωμένο" };
 
 async function loadData() {
   loading = true;
   render();
-  const [projRes, entRes, contactRes] = await Promise.all([
+  const [projRes, entRes, contactRes, fieldRes, fileRes] = await Promise.all([
     supabase.from("projects").select("*").order("created_at", { ascending: true }),
     supabase.from("entries").select("*"),
-    supabase.from("project_contacts").select("*").order("created_at", { ascending: true })
+    supabase.from("project_contacts").select("*").order("created_at", { ascending: true }),
+    supabase.from("project_fields").select("*").order("sort_order", { ascending: true }),
+    supabase.from("project_files").select("*").order("created_at", { ascending: true })
   ]);
-  if (projRes.error || entRes.error || contactRes.error) {
+  if (projRes.error || entRes.error || contactRes.error || fieldRes.error || fileRes.error) {
     saveError = true;
   } else {
     projects = projRes.data.map(mapProject);
     entries = entRes.data.map(mapEntry);
     contacts = contactRes.data.map(mapContact);
+    fields = fieldRes.data.map(mapField);
+    projectFiles = fileRes.data.map(mapFile);
     if (projects.length > 0 && !activeProjectId) activeProjectId = projects[0].id;
   }
   loading = false;
@@ -527,12 +556,14 @@ function renderMain() {
   const { months, data } = monthlyBreakdown(projectEntries);
 
   const projectContacts = contacts.filter(c => c.projectId === activeProject.id);
+  const projectFields = fields.filter(f => f.projectId === activeProject.id);
   const metaParts = [];
   if (activeProject.address) metaParts.push(`Διεύθυνση: ${escapeHTML(activeProject.address)}`);
   if (activeProject.startDate || activeProject.endDate) {
     metaParts.push(`Διάρκεια: ${activeProject.startDate ? fmtDate(activeProject.startDate) : "—"} → ${activeProject.endDate ? fmtDate(activeProject.endDate) : "—"}`);
   }
   if (activeProject.clientVat) metaParts.push(`ΑΦΜ πελάτη: ${escapeHTML(activeProject.clientVat)}`);
+  if (activeProject.contractNumber) metaParts.push(`Αρ. συμβολαίου: ${escapeHTML(activeProject.contractNumber)}`);
   if (activeProject.budget) metaParts.push(`Προϋπολογισμός: ${fmt(activeProject.budget)} €`);
 
   main.innerHTML = `
@@ -549,6 +580,8 @@ function renderMain() {
             ${c.phone ? `<span>${escapeHTML(c.phone)}</span>` : ""}
             ${c.email ? `<span>${escapeHTML(c.email)}</span>` : ""}
           </div>`).join("")}</div>` : ""}
+        ${projectFields.length ? `<div class="kv-list" style="margin-top:8px;">${projectFields.map(f => `
+          <div class="kv-item"><b>${escapeHTML(f.label)}:</b> ${escapeHTML(f.value || "—")}</div>`).join("")}</div>` : ""}
       </div>
       <div class="action-group no-print">
         <button class="btn-outline" style="width:auto; padding:7px 11px; font-size:12.5px;" id="editProjectBtn">Στοιχεία έργου</button>
@@ -601,10 +634,17 @@ function renderMain() {
     </div>
   `;
 
-  if (projectFilesCache[activeProjectId] === undefined) loadProjectFiles(activeProjectId);
-  const fileInput = document.getElementById("fileUploadInput");
-  if (fileInput) fileInput.addEventListener("change", (e) => { if (e.target.files[0]) uploadProjectFile(activeProjectId, e.target.files[0]); });
-  document.querySelectorAll("[data-delete-file]").forEach(btn => btn.addEventListener("click", () => deleteProjectFile(activeProjectId, btn.getAttribute("data-delete-file"))));
+  const fileUploadBtn = document.getElementById("fileUploadBtn");
+  if (fileUploadBtn) fileUploadBtn.addEventListener("click", () => {
+    const labelEl = document.getElementById("fileLabelInput");
+    const inputEl = document.getElementById("fileUploadInput");
+    const statusEl = document.getElementById("fileUploadStatus");
+    const file = inputEl.files[0];
+    if (!file) { statusEl.textContent = "Επίλεξε πρώτα ένα αρχείο."; return; }
+    const label = labelEl.value.trim() || file.name;
+    uploadProjectFile(activeProjectId, file, label);
+  });
+  document.querySelectorAll("[data-delete-file]").forEach(btn => btn.addEventListener("click", () => deleteProjectFile(btn.getAttribute("data-delete-file"))));
   document.getElementById("editProjectBtn").addEventListener("click", () => openProjectModal(activeProject));
   document.getElementById("exportCsvBtn").addEventListener("click", () => exportProjectCSV(activeProject, projectEntries));
   document.getElementById("printReportBtn").addEventListener("click", () => window.print());
@@ -914,54 +954,48 @@ function fmtBytes(bytes) {
 }
 
 function filesSectionHTML(projectId) {
-  const files = projectFilesCache[projectId];
-  if (files === undefined) {
-    return `<div class="loading-note" style="padding:10px 0;">Φόρτωση αρχείων…</div>`;
-  }
+  const files = projectFiles.filter(f => f.projectId === projectId);
   const rows = files.length === 0
     ? `<div class="empty-table">Δεν έχουν ανέβει αρχεία.</div>`
     : `<div id="entriesWrap">${files.map(f => `
       <div class="file-row">
         <div>
-          <a href="${f.url}" target="_blank" rel="noopener">${escapeHTML(f.displayName)}</a>
+          <a href="${f.url}" target="_blank" rel="noopener">${escapeHTML(f.label)}</a>
           <div class="file-meta">${fmtBytes(f.size)}</div>
         </div>
-        <button class="del-btn" data-delete-file="${escapeHTML(f.name)}">&#10005;</button>
+        <button class="del-btn" data-delete-file="${f.id}">&#10005;</button>
       </div>`).join("")}</div>`;
   return `
     ${rows}
-    <label class="btn-outline" style="margin-top:10px; width:auto; display:inline-flex; padding:8px 13px; font-size:12.5px; cursor:pointer;">
-      + Ανέβασμα αρχείου
-      <input type="file" id="fileUploadInput" style="display:none;">
-    </label>
+    <div class="field-row" style="margin-top:10px; align-items:end;">
+      <div class="field" style="margin-bottom:0;"><label>Ονομασία αρχείου</label><input id="fileLabelInput" placeholder="π.χ. Πολεοδομική Άδεια"></div>
+      <div class="field" style="margin-bottom:0;"><label>Αρχείο</label><input type="file" id="fileUploadInput"></div>
+    </div>
+    <button type="button" class="btn-outline" id="fileUploadBtn" style="margin-top:8px; width:auto; padding:8px 13px; font-size:12.5px;">+ Ανέβασμα αρχείου</button>
+    <span id="fileUploadStatus" style="font-size:12px; color:#A6402C; margin-left:8px;"></span>
   `;
 }
 
-async function loadProjectFiles(projectId) {
-  const { data, error } = await supabase.storage.from("project-files").list(projectId, { sortBy: { column: "name", order: "asc" } });
-  if (error) { projectFilesCache[projectId] = []; render(); return; }
-  projectFilesCache[projectId] = data.filter(f => f.id).map(f => ({
-    name: f.name,
-    displayName: f.name.replace(/^\d+_/, ""),
-    size: f.metadata ? f.metadata.size : 0,
-    url: supabase.storage.from("project-files").getPublicUrl(`${projectId}/${f.name}`).data.publicUrl
-  }));
+async function uploadProjectFile(projectId, file, label) {
+  const path = `${projectId}/${Date.now()}_${file.name.replace(/[\/\\]/g, "_")}`;
+  const { error: uploadError } = await supabase.storage.from("project-files").upload(path, file);
+  if (uploadError) { saveError = true; render(); return; }
+  const { data, error } = await supabase.from("project_files").insert({
+    project_id: projectId, label, storage_path: path, size: file.size
+  }).select().single();
+  if (error) { saveError = true; render(); return; }
+  projectFiles.push(mapFile(data));
   render();
 }
 
-async function uploadProjectFile(projectId, file) {
-  const path = `${projectId}/${Date.now()}_${file.name.replace(/[\/\\]/g, "_")}`;
-  const { error } = await supabase.storage.from("project-files").upload(path, file);
+async function deleteProjectFile(fileId) {
+  const file = projectFiles.find(f => f.id === fileId);
+  if (!file) return;
+  await supabase.storage.from("project-files").remove([file.storagePath]);
+  const { error } = await supabase.from("project_files").delete().eq("id", fileId);
   if (error) { saveError = true; render(); return; }
-  delete projectFilesCache[projectId];
-  loadProjectFiles(projectId);
-}
-
-async function deleteProjectFile(projectId, fileName) {
-  const { error } = await supabase.storage.from("project-files").remove([`${projectId}/${fileName}`]);
-  if (error) { saveError = true; render(); return; }
-  delete projectFilesCache[projectId];
-  loadProjectFiles(projectId);
+  projectFiles = projectFiles.filter(f => f.id !== fileId);
+  render();
 }
 
 function csvEscape(v) {
@@ -988,11 +1022,11 @@ function exportProjectCSV(project, list) {
   URL.revokeObjectURL(url);
 }
 
-async function createProject(project, contactRows) {
+async function createProject(project, contactRows, fieldRows) {
   const { data, error } = await supabase.from("projects").insert({
     name: project.name, address: project.address || null, start_date: project.startDate || null,
     end_date: project.endDate || null, status: project.status, client_vat: project.clientVat || null,
-    budget: project.budget
+    contract_number: project.contractNumber || null, budget: project.budget
   }).select().single();
   if (error) { saveError = true; render(); return; }
   const newProject = mapProject(data);
@@ -1000,18 +1034,20 @@ async function createProject(project, contactRows) {
   activeProjectId = newProject.id;
   render();
   saveProjectContacts(newProject.id, contactRows);
+  saveProjectFields(newProject.id, fieldRows);
 }
 
-async function updateProject(id, project, contactRows) {
+async function updateProject(id, project, contactRows, fieldRows) {
   const { data, error } = await supabase.from("projects").update({
     name: project.name, address: project.address || null, start_date: project.startDate || null,
     end_date: project.endDate || null, status: project.status, client_vat: project.clientVat || null,
-    budget: project.budget
+    contract_number: project.contractNumber || null, budget: project.budget
   }).eq("id", id).select().single();
   if (error) { saveError = true; render(); return; }
   projects = projects.map(p => p.id === id ? mapProject(data) : p);
   render();
   saveProjectContacts(id, contactRows);
+  saveProjectFields(id, fieldRows);
 }
 
 async function saveProjectContacts(projectId, contactRows) {
@@ -1027,19 +1063,31 @@ async function saveProjectContacts(projectId, contactRows) {
   render();
 }
 
+async function saveProjectFields(projectId, fieldRows) {
+  const validRows = fieldRows.filter(f => f.label.trim());
+  await supabase.from("project_fields").delete().eq("project_id", projectId);
+  fields = fields.filter(f => f.projectId !== projectId);
+  if (validRows.length === 0) { render(); return; }
+  const { data, error } = await supabase.from("project_fields").insert(
+    validRows.map((f, i) => ({ project_id: projectId, label: f.label.trim(), value: f.value.trim() || null, sort_order: i }))
+  ).select();
+  if (error) { saveError = true; render(); return; }
+  data.forEach(d => fields.push(mapField(d)));
+  render();
+}
+
 async function deleteProject(id) {
+  const filesToRemove = projectFiles.filter(f => f.projectId === id).map(f => f.storagePath);
   const { error } = await supabase.from("projects").delete().eq("id", id);
   if (error) { saveError = true; render(); return; }
   projects = projects.filter(p => p.id !== id);
   entries = entries.filter(e => e.projectId !== id);
   contacts = contacts.filter(c => c.projectId !== id);
-  delete projectFilesCache[id];
+  fields = fields.filter(f => f.projectId !== id);
+  projectFiles = projectFiles.filter(f => f.projectId !== id);
   if (activeProjectId === id) activeProjectId = projects.length ? projects[0].id : null;
   render();
-  const { data: files } = await supabase.storage.from("project-files").list(id);
-  if (files && files.length) {
-    await supabase.storage.from("project-files").remove(files.map(f => `${id}/${f.name}`));
-  }
+  if (filesToRemove.length) await supabase.storage.from("project-files").remove(filesToRemove);
 }
 
 async function addEntries(entryList) {
@@ -1096,7 +1144,7 @@ document.getElementById("newProjectBtn").addEventListener("click", () => openPro
 
 function openProjectModal(project) {
   editingProjectId = project ? project.id : null;
-  document.getElementById("projectModalTitle").textContent = project ? "Επεξεργασία έργου" : "Νέο έργο";
+  document.getElementById("projectModalTitle").textContent = project ? "Στοιχεία έργου" : "Νέο έργο";
   document.getElementById("pjSubmit").textContent = project ? "Αποθήκευση αλλαγών" : "Δημιουργία έργου";
   document.getElementById("pjName").value = project ? project.name : "";
   document.getElementById("pjAddress").value = project ? (project.address || "") : "";
@@ -1104,12 +1152,17 @@ function openProjectModal(project) {
   document.getElementById("pjEndDate").value = project ? (project.endDate || "") : "";
   document.getElementById("pjStatus").value = project ? project.status : "active";
   document.getElementById("pjClientVat").value = project ? (project.clientVat || "") : "";
+  document.getElementById("pjContractNumber").value = project ? (project.contractNumber || "") : "";
   document.getElementById("pjBudget").value = project && project.budget ? project.budget : "";
   document.getElementById("pjError").style.display = "none";
   pjContactRows = project
     ? contacts.filter(c => c.projectId === project.id).map(c => ({ name: c.name, role: c.role || "", phone: c.phone || "", email: c.email || "" }))
     : [];
   renderContactRows();
+  pjFieldRows = project
+    ? fields.filter(f => f.projectId === project.id).map(f => ({ label: f.label, value: f.value || "" }))
+    : [];
+  renderFieldRows();
   openModal("projectModalOverlay");
 }
 
@@ -1138,6 +1191,27 @@ document.getElementById("addContactBtn").addEventListener("click", () => {
   renderContactRows();
 });
 
+function renderFieldRows() {
+  const container = document.getElementById("pjFields");
+  container.innerHTML = pjFieldRows.map((f, i) => `
+    <div class="kv-row">
+      <input class="field-label" data-idx="${i}" placeholder="Ονομασία (π.χ. Πολεοδομική Άδεια)" value="${escapeHTML(f.label)}">
+      <input class="field-value" data-idx="${i}" placeholder="Τιμή (π.χ. Αρ. 123/2024)" value="${escapeHTML(f.value)}">
+      <button type="button" class="contact-remove" data-idx="${i}">&#10005;</button>
+    </div>`).join("");
+  container.querySelectorAll(".field-label").forEach(inp => inp.addEventListener("input", (e) => { pjFieldRows[+e.target.getAttribute("data-idx")].label = e.target.value; }));
+  container.querySelectorAll(".field-value").forEach(inp => inp.addEventListener("input", (e) => { pjFieldRows[+e.target.getAttribute("data-idx")].value = e.target.value; }));
+  container.querySelectorAll(".contact-remove").forEach(btn => btn.addEventListener("click", (e) => {
+    pjFieldRows.splice(+e.target.getAttribute("data-idx"), 1);
+    renderFieldRows();
+  }));
+}
+
+document.getElementById("addFieldBtn").addEventListener("click", () => {
+  pjFieldRows.push({ label: "", value: "" });
+  renderFieldRows();
+});
+
 document.getElementById("pjSubmit").addEventListener("click", () => {
   const name = document.getElementById("pjName").value.trim();
   const address = document.getElementById("pjAddress").value.trim();
@@ -1145,15 +1219,16 @@ document.getElementById("pjSubmit").addEventListener("click", () => {
   const endDate = document.getElementById("pjEndDate").value;
   const status = document.getElementById("pjStatus").value;
   const clientVat = document.getElementById("pjClientVat").value.trim();
+  const contractNumber = document.getElementById("pjContractNumber").value.trim();
   const budget = document.getElementById("pjBudget").value;
   const errEl = document.getElementById("pjError");
   if (!name) { errEl.textContent = "Δώσε όνομα έργου."; errEl.style.display = "block"; return; }
   if (startDate && endDate && endDate < startDate) { errEl.textContent = "Η ημ/νία λήξης δεν μπορεί να είναι πριν την έναρξη."; errEl.style.display = "block"; return; }
-  const projectData = { name, address, startDate, endDate, status, clientVat, budget: budget ? parseFloat(budget) : 0 };
+  const projectData = { name, address, startDate, endDate, status, clientVat, contractNumber, budget: budget ? parseFloat(budget) : 0 };
   if (editingProjectId) {
-    updateProject(editingProjectId, projectData, pjContactRows);
+    updateProject(editingProjectId, projectData, pjContactRows, pjFieldRows);
   } else {
-    createProject(projectData, pjContactRows);
+    createProject(projectData, pjContactRows, pjFieldRows);
   }
   closeModal("projectModalOverlay");
 });
