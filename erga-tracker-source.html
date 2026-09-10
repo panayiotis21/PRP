@@ -246,8 +246,7 @@
         <div class="field" style="margin-bottom:0;" id="enCategoryField">
           <label>Κατηγορία</label>
           <select id="enCategory"></select>
-          <input id="enCategoryInput" list="enCategoryList" placeholder="Κατηγορία ή γράψε νέα…" style="display:none;">
-          <datalist id="enCategoryList"></datalist>
+          <input id="enCategoryNew" placeholder="Νέα κατηγορία…" style="display:none; margin-top:6px;">
         </div>
       </div>
       <div class="field"><label>Περιγραφή</label><input id="enDescription" placeholder="π.χ. 2η πιστοποίηση εργασιών"></div>
@@ -1228,29 +1227,41 @@ function openEntryModal(type) {
   openModal("entryModalOverlay");
 }
 
+const NEW_CATEGORY_VALUE = "__new__";
+
 function baseCategoriesFor(type) {
   if (type === "income") return CATEGORIES_INC;
   return CATEGORIES_EXP;
 }
 
 function updateCategoryField() {
-  const isIncome = entryModalType === "income";
   const selectEl = document.getElementById("enCategory");
-  const inputEl = document.getElementById("enCategoryInput");
+  const newInputEl = document.getElementById("enCategoryNew");
   const base = baseCategoriesFor(entryModalType);
-  if (isIncome) {
-    selectEl.style.display = "block";
-    inputEl.style.display = "none";
-    selectEl.innerHTML = base.map(c => `<option value="${c}">${c}</option>`).join("");
-  } else {
-    selectEl.style.display = "none";
-    inputEl.style.display = "block";
-    const used = [...new Set(entries.filter(e => e.type === "expense" && e.category).map(e => e.category))];
-    const combined = [...new Set([...base, ...used])];
-    document.getElementById("enCategoryList").innerHTML = combined.map(c => `<option value="${escapeHTML(c)}"></option>`).join("");
-    inputEl.value = base[0] || "";
-  }
+  const used = [...new Set(entries.filter(e => e.type === entryModalType && e.category).map(e => e.category))];
+  const combined = [...new Set([...base, ...used])];
+  selectEl.innerHTML = combined.map(c => `<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`).join("")
+    + `<option value="${NEW_CATEGORY_VALUE}">+ Νέα κατηγορία…</option>`;
+  selectEl.value = combined[0] || NEW_CATEGORY_VALUE;
+  newInputEl.value = "";
+  newInputEl.style.display = "none";
 }
+
+function selectedCategory() {
+  const selectEl = document.getElementById("enCategory");
+  if (selectEl.value === NEW_CATEGORY_VALUE) return document.getElementById("enCategoryNew").value.trim();
+  return selectEl.value;
+}
+
+document.getElementById("enCategory").addEventListener("change", (e) => {
+  const newInputEl = document.getElementById("enCategoryNew");
+  if (e.target.value === NEW_CATEGORY_VALUE) {
+    newInputEl.style.display = "block";
+    newInputEl.focus();
+  } else {
+    newInputEl.style.display = "none";
+  }
+});
 
 function renderVatLines() {
   const wrap = document.getElementById("vatLinesWrap");
@@ -1316,7 +1327,7 @@ document.getElementById("enSubmit").addEventListener("click", () => {
   const totalPercent = allocations.reduce((s, a) => s + (parseFloat(a.percent) || 0), 0);
   if (Math.abs(totalPercent - 100) > 0.05) { errEl.textContent = `Τα ποσοστά πρέπει να αθροίζουν σε 100% (τώρα: ${Math.round(totalPercent * 10) / 10}%).`; errEl.style.display = "block"; return; }
   if (!description) { errEl.textContent = "Δώσε περιγραφή."; errEl.style.display = "block"; return; }
-  const categoryCheck = isIncome ? document.getElementById("enCategory").value : document.getElementById("enCategoryInput").value.trim();
+  const categoryCheck = selectedCategory();
   if (!categoryCheck) { errEl.textContent = "Δώσε κατηγορία."; errEl.style.display = "block"; return; }
   const validLines = vatLines.filter(l => (parseFloat(l.net) || 0) > 0);
   if (validLines.length === 0) { errEl.textContent = "Δώσε καθαρή αξία μεγαλύτερη από 0 σε τουλάχιστον μία γραμμή ΦΠΑ."; errEl.style.display = "block"; return; }
@@ -1326,7 +1337,7 @@ document.getElementById("enSubmit").addEventListener("click", () => {
   const vatRate = distinctRates.length === 1 ? distinctRates[0] : null;
   const paid = document.getElementById("enPaid").checked;
   const date = document.getElementById("enDate").value;
-  const category = isIncome ? document.getElementById("enCategory").value : document.getElementById("enCategoryInput").value.trim();
+  const category = categoryCheck;
   const supplier = entryModalType === "expense" ? document.getElementById("enSupplier").value.trim() : "";
   const invoiceNumber = document.getElementById("enInvoice").value.trim();
   const paymentMethod = document.getElementById("enPaymentMethod").value;
