@@ -230,6 +230,12 @@
         <div class="field"><label>Όνομα έργου</label><input id="pjName" placeholder="π.χ. Κατοικία Δήμητρα"></div>
         <div class="field"><label>Αριθμός έργου</label><input id="pjNumber" type="number"></div>
       </div>
+      <div class="field"><label>Αριθμός συμβολαίου</label><input id="pjContractNumber"></div>
+      <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr;">
+        <div class="field"><label>Ποσό συμβολαίου €</label><input id="pjBudget" type="number"></div>
+        <div class="field"><label>ΦΠΑ</label><select id="pjBudgetVat"></select></div>
+        <div class="field"><label>Σύνολο</label><input id="pjBudgetTotalPreview" readonly></div>
+      </div>
       <div class="field"><label>Διεύθυνση / τοποθεσία</label><input id="pjAddress"></div>
       <div class="field-row">
         <div class="field"><label>Ημ/νία έναρξης</label><input id="pjStartDate" type="date"></div>
@@ -244,15 +250,7 @@
           <option value="cancelled">Ακυρωμένο</option>
         </select>
       </div>
-      <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr;">
-        <div class="field"><label>Ποσό συμβολαίου €</label><input id="pjBudget" type="number"></div>
-        <div class="field"><label>ΦΠΑ</label><select id="pjBudgetVat"></select></div>
-        <div class="field"><label>Σύνολο</label><input id="pjBudgetTotalPreview" readonly></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>ΑΦΜ πελάτη</label><input id="pjClientVat"></div>
-        <div class="field"><label>Αριθμός συμβολαίου</label><input id="pjContractNumber"></div>
-      </div>
+      <div class="field"><label>ΑΦΜ πελάτη</label><input id="pjClientVat"></div>
       <div class="field">
         <label>Επαφές έργου (π.χ. πελάτης, μηχανικός, επιβλέπων)</label>
         <div id="pjContacts"></div>
