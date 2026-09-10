@@ -124,6 +124,36 @@
   .alloc-remove { color: #B0AB98; font-size: 15px; text-align: center; }
   .split-badge { font-size: 11px; color: #8A8676; }
 
+  .contact-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 26px; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .contact-row input { padding: 8px 9px; border: 1px solid #D8D3C5; border-radius: 3px; font-size: 12.5px; background: #FFFFFF; color: #221F1A; width: 100%; }
+  .contact-remove { color: #B0AB98; font-size: 15px; text-align: center; }
+  .contact-remove:hover { color: #A6402C; }
+
+  .contact-card { display: flex; flex-wrap: wrap; gap: 3px 14px; font-size: 12.5px; color: #6E6A5F; }
+  .contact-card .c-name { font-weight: 600; color: #221F1A; }
+
+  .proj-status-badge { font-size: 11px; padding: 3px 9px; border-radius: 3px; border: 1px solid; white-space: nowrap; display: inline-block; margin-top: 6px; }
+  .proj-status-active { border-color: #B9D4C4; background: #E7F2EC; color: #2F6B4F; }
+  .proj-status-on_hold { border-color: #E0D5A8; background: #FBF3DC; color: #8A6D1E; }
+  .proj-status-completed { border-color: #C7C2E8; background: #EEECFB; color: #4B3F9E; }
+  .proj-status-cancelled { border-color: #E0BDB2; background: #FBEAE7; color: #8A3319; }
+
+  .sidebar-filter { padding: 10px 10px 0; }
+  .sidebar-filter select { width: 100%; padding: 7px 9px; border: 1px solid #D8D3C5; border-radius: 3px; font-size: 12px; background: #F8F6F1; color: #221F1A; }
+
+  .file-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; border-bottom: 1px solid #EBE8DE; font-size: 13px; }
+  .file-row:last-child { border-bottom: none; }
+  .file-row a { color: #221F1A; font-weight: 500; }
+  .file-row .file-meta { font-size: 11px; color: #8A8676; }
+
+  @media print {
+    .no-print { display: none !important; }
+    #sidebar { display: none !important; }
+    #app { display: block; }
+    #main { padding: 0; overflow: visible; }
+    body { background: #fff; }
+  }
+
   @media (max-width: 720px) {
     #app { flex-direction: column; }
     #sidebar { width: 100%; border-right: none; border-bottom: 1px solid #D8D3C5; max-height: 40vh; }
@@ -144,6 +174,14 @@
         <div class="sub" id="projectCount">0 ενεργά</div>
       </div>
     </div>
+    <div class="sidebar-filter">
+      <select id="sidebarStatusFilter">
+        <option value="open">Ενεργά έργα</option>
+        <option value="all">Όλα τα έργα</option>
+        <option value="completed">Ολοκληρωμένα</option>
+        <option value="cancelled">Ακυρωμένα</option>
+      </select>
+    </div>
     <div id="projectList"><div class="loading-note">Φόρτωση…</div></div>
     <div id="sidebarFooter">
       <button class="btn-outline" id="allInvoicesBtn" style="margin-bottom:8px;">Όλα τα τιμολόγια</button>
@@ -156,17 +194,34 @@
 <div class="modal-overlay" id="projectModalOverlay">
   <div class="modal-box">
     <div class="modal-head">
-      <div class="modal-title disp">Νέο έργο</div>
+      <div class="modal-title disp" id="projectModalTitle">Νέο έργο</div>
       <button class="modal-close" data-close="projectModalOverlay">&#10005;</button>
     </div>
     <div class="modal-body">
       <div class="field"><label>Όνομα έργου</label><input id="pjName" placeholder="π.χ. Οικοδομή Λεωφόρος Αθηνών"></div>
-      <div class="field"><label>Πελάτης (προαιρετικό)</label><input id="pjClient"></div>
+      <div class="field"><label>Διεύθυνση / τοποθεσία (προαιρετικό)</label><input id="pjAddress"></div>
       <div class="field-row">
-        <div class="field"><label>Τηλέφωνο (προαιρετικό)</label><input id="pjPhone" type="tel"></div>
-        <div class="field"><label>Email (προαιρετικό)</label><input id="pjEmail" type="email"></div>
+        <div class="field"><label>Ημ/νία έναρξης (προαιρετικό)</label><input id="pjStartDate" type="date"></div>
+        <div class="field"><label>Αναμ. ημ/νία λήξης (προαιρετικό)</label><input id="pjEndDate" type="date"></div>
       </div>
-      <div class="field"><label>Προϋπολογισμός € (προαιρετικό)</label><input id="pjBudget" type="number"></div>
+      <div class="field-row">
+        <div class="field">
+          <label>Κατάσταση</label>
+          <select id="pjStatus">
+            <option value="active">Ενεργό</option>
+            <option value="on_hold">Σε αναμονή</option>
+            <option value="completed">Ολοκληρωμένο</option>
+            <option value="cancelled">Ακυρωμένο</option>
+          </select>
+        </div>
+        <div class="field"><label>Προϋπολογισμός € (προαιρετικό)</label><input id="pjBudget" type="number"></div>
+      </div>
+      <div class="field"><label>ΑΦΜ πελάτη (προαιρετικό)</label><input id="pjClientVat"></div>
+      <div class="field">
+        <label>Επαφές έργου (π.χ. πελάτης, μηχανικός, επιβλέπων)</label>
+        <div id="pjContacts"></div>
+        <button type="button" id="addContactBtn" class="btn-outline" style="margin-top:2px; font-size:12px; padding:6px 10px; width:auto; display:inline-flex;">+ Προσθήκη επαφής</button>
+      </div>
       <div class="err-text" id="pjError" style="display:none;"></div>
       <button class="btn-submit" style="background:#C1571F;" id="pjSubmit">Δημιουργία έργου</button>
     </div>
@@ -227,8 +282,13 @@ const VAT_RATE_OPTIONS = [19, 5, 3, 0];
 
 let projects = [];
 let entries = [];
+let contacts = [];
 let activeProjectId = null;
 let showAllInvoices = false;
+let sidebarStatusFilter = "open";
+let editingProjectId = null;
+let pjContactRows = [];
+let projectFilesCache = {};
 let filterType = "all";
 let filterStatus = "all";
 let filterCategory = "all";
@@ -277,21 +337,31 @@ function mapEntry(row) {
   };
 }
 function mapProject(row) {
-  return { id: row.id, name: row.name, client: row.client, clientPhone: row.client_phone, clientEmail: row.client_email, budget: Number(row.budget || 0) };
+  return {
+    id: row.id, name: row.name, address: row.address, budget: Number(row.budget || 0),
+    startDate: row.start_date, endDate: row.end_date, status: row.status || "active",
+    clientVat: row.client_vat
+  };
 }
+function mapContact(row) {
+  return { id: row.id, projectId: row.project_id, name: row.name, role: row.role, phone: row.phone, email: row.email };
+}
+const PROJECT_STATUS_LABELS = { active: "Ενεργό", on_hold: "Σε αναμονή", completed: "Ολοκληρωμένο", cancelled: "Ακυρωμένο" };
 
 async function loadData() {
   loading = true;
   render();
-  const [projRes, entRes] = await Promise.all([
+  const [projRes, entRes, contactRes] = await Promise.all([
     supabase.from("projects").select("*").order("created_at", { ascending: true }),
-    supabase.from("entries").select("*")
+    supabase.from("entries").select("*"),
+    supabase.from("project_contacts").select("*").order("created_at", { ascending: true })
   ]);
-  if (projRes.error || entRes.error) {
+  if (projRes.error || entRes.error || contactRes.error) {
     saveError = true;
   } else {
     projects = projRes.data.map(mapProject);
     entries = entRes.data.map(mapEntry);
+    contacts = contactRes.data.map(mapContact);
     if (projects.length > 0 && !activeProjectId) activeProjectId = projects[0].id;
   }
   loading = false;
@@ -344,14 +414,26 @@ function destroyCharts() {
 }
 
 function renderSidebar() {
-  document.getElementById("projectCount").textContent = `${projects.length} ενεργά`;
+  const filterEl = document.getElementById("sidebarStatusFilter");
+  if (filterEl) filterEl.value = sidebarStatusFilter;
+  const visibleProjects = projects.filter(p => {
+    if (sidebarStatusFilter === "all") return true;
+    if (sidebarStatusFilter === "open") return p.status === "active" || p.status === "on_hold";
+    return p.status === sidebarStatusFilter;
+  });
+  document.getElementById("projectCount").textContent = `${visibleProjects.length} έργα`;
   const list = document.getElementById("projectList");
   if (loading) { list.innerHTML = `<div class="loading-note">Φόρτωση…</div>`; return; }
   if (projects.length === 0) {
     list.innerHTML = `<div class="empty-note">Δεν υπάρχουν έργα ακόμη. Πρόσθεσε το πρώτο σου έργο για να ξεκινήσεις.</div>`;
     return;
   }
-  list.innerHTML = projects.map((p, i) => {
+  if (visibleProjects.length === 0) {
+    list.innerHTML = `<div class="empty-note">Δεν υπάρχουν έργα με αυτό το φίλτρο.</div>`;
+    return;
+  }
+  list.innerHTML = visibleProjects.map((p) => {
+    const i = projects.indexOf(p);
     const st = computeStats(entries.filter(e => e.projectId === p.id));
     const active = !showAllInvoices && p.id === activeProjectId;
     return `
@@ -428,10 +510,13 @@ function renderMain() {
   const categoriesInProject = [...new Set(projectEntries.map(e => e.category).filter(Boolean))];
   const { months, data } = monthlyBreakdown(projectEntries);
 
+  const projectContacts = contacts.filter(c => c.projectId === activeProject.id);
   const metaParts = [];
-  if (activeProject.client) metaParts.push(`Πελάτης: ${escapeHTML(activeProject.client)}`);
-  if (activeProject.clientPhone) metaParts.push(`Τηλ.: ${escapeHTML(activeProject.clientPhone)}`);
-  if (activeProject.clientEmail) metaParts.push(`Email: ${escapeHTML(activeProject.clientEmail)}`);
+  if (activeProject.address) metaParts.push(`Διεύθυνση: ${escapeHTML(activeProject.address)}`);
+  if (activeProject.startDate || activeProject.endDate) {
+    metaParts.push(`Διάρκεια: ${activeProject.startDate ? fmtDate(activeProject.startDate) : "—"} → ${activeProject.endDate ? fmtDate(activeProject.endDate) : "—"}`);
+  }
+  if (activeProject.clientVat) metaParts.push(`ΑΦΜ πελάτη: ${escapeHTML(activeProject.clientVat)}`);
   if (activeProject.budget) metaParts.push(`Προϋπολογισμός: ${fmt(activeProject.budget)} €`);
 
   main.innerHTML = `
@@ -440,8 +525,21 @@ function renderMain() {
       <div>
         <div class="proj-name disp">${escapeHTML(activeProject.name)}</div>
         <div class="proj-meta">${metaParts.join("  ·  ")}</div>
+        <span class="proj-status-badge proj-status-${activeProject.status}">${PROJECT_STATUS_LABELS[activeProject.status] || activeProject.status}</span>
+        ${projectContacts.length ? `<div style="margin-top:10px; display:flex; flex-direction:column; gap:4px;">${projectContacts.map(c => `
+          <div class="contact-card">
+            <span class="c-name">${escapeHTML(c.name)}</span>
+            ${c.role ? `<span>${escapeHTML(c.role)}</span>` : ""}
+            ${c.phone ? `<span>${escapeHTML(c.phone)}</span>` : ""}
+            ${c.email ? `<span>${escapeHTML(c.email)}</span>` : ""}
+          </div>`).join("")}</div>` : ""}
       </div>
-      <button class="btn-danger" id="deleteProjectBtn">&#128465; Διαγραφή έργου</button>
+      <div class="action-group no-print">
+        <button class="btn-outline" style="width:auto; padding:7px 11px; font-size:12.5px;" id="editProjectBtn">Επεξεργασία</button>
+        <button class="btn-outline" style="width:auto; padding:7px 11px; font-size:12.5px;" id="exportCsvBtn">Εξαγωγή CSV</button>
+        <button class="btn-outline" style="width:auto; padding:7px 11px; font-size:12.5px;" id="printReportBtn">Εκτύπωση</button>
+        <button class="btn-danger" id="deleteProjectBtn">&#128465; Διαγραφή έργου</button>
+      </div>
     </div>
     ${statBarHTML(stats)}
     <div class="chart-section">
@@ -481,8 +579,19 @@ function renderMain() {
     </div>
     ${entriesTableHTML(filtered)}
     ${supplierBreakdownHTML(projectEntries)}
+    <div class="chart-section no-print">
+      <div class="chart-title">Αρχεία έργου</div>
+      ${filesSectionHTML(activeProjectId)}
+    </div>
   `;
 
+  if (projectFilesCache[activeProjectId] === undefined) loadProjectFiles(activeProjectId);
+  const fileInput = document.getElementById("fileUploadInput");
+  if (fileInput) fileInput.addEventListener("change", (e) => { if (e.target.files[0]) uploadProjectFile(activeProjectId, e.target.files[0]); });
+  document.querySelectorAll("[data-delete-file]").forEach(btn => btn.addEventListener("click", () => deleteProjectFile(activeProjectId, btn.getAttribute("data-delete-file"))));
+  document.getElementById("editProjectBtn").addEventListener("click", () => openProjectModal(activeProject));
+  document.getElementById("exportCsvBtn").addEventListener("click", () => exportProjectCSV(activeProject, projectEntries));
+  document.getElementById("printReportBtn").addEventListener("click", () => window.print());
   document.getElementById("deleteProjectBtn").addEventListener("click", () => deleteProject(activeProject.id));
   document.querySelectorAll("[data-filter]").forEach(btn => btn.addEventListener("click", () => { filterType = btn.getAttribute("data-filter"); render(); }));
   document.querySelectorAll("[data-status-filter]").forEach(btn => btn.addEventListener("click", () => { filterStatus = btn.getAttribute("data-status-filter"); render(); }));
@@ -781,11 +890,124 @@ function entriesTableHTML(list) {
     </div>`;
 }
 
-async function addProject(project) {
-  const { data, error } = await supabase.from("projects").insert({ name: project.name, client: project.client, client_phone: project.clientPhone || null, client_email: project.clientEmail || null, budget: project.budget }).select().single();
+function fmtBytes(bytes) {
+  if (!bytes && bytes !== 0) return "";
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+function filesSectionHTML(projectId) {
+  const files = projectFilesCache[projectId];
+  if (files === undefined) {
+    return `<div class="loading-note" style="padding:10px 0;">Φόρτωση αρχείων…</div>`;
+  }
+  const rows = files.length === 0
+    ? `<div class="empty-table">Δεν έχουν ανέβει αρχεία.</div>`
+    : `<div id="entriesWrap">${files.map(f => `
+      <div class="file-row">
+        <div>
+          <a href="${f.url}" target="_blank" rel="noopener">${escapeHTML(f.displayName)}</a>
+          <div class="file-meta">${fmtBytes(f.size)}</div>
+        </div>
+        <button class="del-btn" data-delete-file="${escapeHTML(f.name)}">&#10005;</button>
+      </div>`).join("")}</div>`;
+  return `
+    ${rows}
+    <label class="btn-outline" style="margin-top:10px; width:auto; display:inline-flex; padding:8px 13px; font-size:12.5px; cursor:pointer;">
+      + Ανέβασμα αρχείου
+      <input type="file" id="fileUploadInput" style="display:none;">
+    </label>
+  `;
+}
+
+async function loadProjectFiles(projectId) {
+  const { data, error } = await supabase.storage.from("project-files").list(projectId, { sortBy: { column: "name", order: "asc" } });
+  if (error) { projectFilesCache[projectId] = []; render(); return; }
+  projectFilesCache[projectId] = data.filter(f => f.id).map(f => ({
+    name: f.name,
+    displayName: f.name.replace(/^\d+_/, ""),
+    size: f.metadata ? f.metadata.size : 0,
+    url: supabase.storage.from("project-files").getPublicUrl(`${projectId}/${f.name}`).data.publicUrl
+  }));
+  render();
+}
+
+async function uploadProjectFile(projectId, file) {
+  const path = `${projectId}/${Date.now()}_${file.name.replace(/[\/\\]/g, "_")}`;
+  const { error } = await supabase.storage.from("project-files").upload(path, file);
   if (error) { saveError = true; render(); return; }
-  projects.push(mapProject(data));
-  activeProjectId = data.id;
+  delete projectFilesCache[projectId];
+  loadProjectFiles(projectId);
+}
+
+async function deleteProjectFile(projectId, fileName) {
+  const { error } = await supabase.storage.from("project-files").remove([`${projectId}/${fileName}`]);
+  if (error) { saveError = true; render(); return; }
+  delete projectFilesCache[projectId];
+  loadProjectFiles(projectId);
+}
+
+function csvEscape(v) {
+  const s = String(v ?? "");
+  return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function exportProjectCSV(project, list) {
+  const headers = ["Ημερομηνία", "Τύπος", "Περιγραφή", "Κατηγορία", "Προμηθευτής", "Αρ. Τιμολογίου", "Τρόπος πληρωμής", "Καθαρή αξία", "ΦΠΑ", "Σύνολο", "Κατάσταση"];
+  const rows = list.slice().sort((a, b) => (a.date < b.date ? -1 : 1)).map(e => [
+    fmtDate(e.date), e.type === "income" ? "Έσοδο" : "Έξοδο", e.description, e.category || "",
+    e.supplier || "", e.invoiceNumber || "", e.paymentMethod || "",
+    fmt(e.net), fmt(e.vat), fmt(e.net + e.vat), e.paid ? "Εξοφλήθηκε" : "Εκκρεμεί"
+  ]);
+  const csv = "﻿" + [headers, ...rows].map(r => r.map(csvEscape).join(";")).join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${project.name.replace(/[^\p{L}\p{N}_\-]+/gu, "_")}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function createProject(project, contactRows) {
+  const { data, error } = await supabase.from("projects").insert({
+    name: project.name, address: project.address || null, start_date: project.startDate || null,
+    end_date: project.endDate || null, status: project.status, client_vat: project.clientVat || null,
+    budget: project.budget
+  }).select().single();
+  if (error) { saveError = true; render(); return; }
+  const newProject = mapProject(data);
+  projects.push(newProject);
+  activeProjectId = newProject.id;
+  render();
+  saveProjectContacts(newProject.id, contactRows);
+}
+
+async function updateProject(id, project, contactRows) {
+  const { data, error } = await supabase.from("projects").update({
+    name: project.name, address: project.address || null, start_date: project.startDate || null,
+    end_date: project.endDate || null, status: project.status, client_vat: project.clientVat || null,
+    budget: project.budget
+  }).eq("id", id).select().single();
+  if (error) { saveError = true; render(); return; }
+  projects = projects.map(p => p.id === id ? mapProject(data) : p);
+  render();
+  saveProjectContacts(id, contactRows);
+}
+
+async function saveProjectContacts(projectId, contactRows) {
+  const validRows = contactRows.filter(c => c.name.trim());
+  await supabase.from("project_contacts").delete().eq("project_id", projectId);
+  contacts = contacts.filter(c => c.projectId !== projectId);
+  if (validRows.length === 0) { render(); return; }
+  const { data, error } = await supabase.from("project_contacts").insert(
+    validRows.map(c => ({ project_id: projectId, name: c.name.trim(), role: c.role.trim() || null, phone: c.phone.trim() || null, email: c.email.trim() || null }))
+  ).select();
+  if (error) { saveError = true; render(); return; }
+  data.forEach(d => contacts.push(mapContact(d)));
   render();
 }
 
@@ -794,8 +1016,14 @@ async function deleteProject(id) {
   if (error) { saveError = true; render(); return; }
   projects = projects.filter(p => p.id !== id);
   entries = entries.filter(e => e.projectId !== id);
+  contacts = contacts.filter(c => c.projectId !== id);
+  delete projectFilesCache[id];
   if (activeProjectId === id) activeProjectId = projects.length ? projects[0].id : null;
   render();
+  const { data: files } = await supabase.storage.from("project-files").list(id);
+  if (files && files.length) {
+    await supabase.storage.from("project-files").remove(files.map(f => `${id}/${f.name}`));
+  }
 }
 
 async function addEntries(entryList) {
@@ -842,25 +1070,74 @@ document.getElementById("allInvoicesBtn").addEventListener("click", () => {
   render();
 });
 
-document.getElementById("newProjectBtn").addEventListener("click", () => {
-  document.getElementById("pjName").value = "";
-  document.getElementById("pjClient").value = "";
-  document.getElementById("pjPhone").value = "";
-  document.getElementById("pjEmail").value = "";
-  document.getElementById("pjBudget").value = "";
+document.getElementById("sidebarStatusFilter").addEventListener("change", (e) => {
+  sidebarStatusFilter = e.target.value;
+  render();
+});
+
+document.getElementById("newProjectBtn").addEventListener("click", () => openProjectModal(null));
+
+function openProjectModal(project) {
+  editingProjectId = project ? project.id : null;
+  document.getElementById("projectModalTitle").textContent = project ? "Επεξεργασία έργου" : "Νέο έργο";
+  document.getElementById("pjSubmit").textContent = project ? "Αποθήκευση αλλαγών" : "Δημιουργία έργου";
+  document.getElementById("pjName").value = project ? project.name : "";
+  document.getElementById("pjAddress").value = project ? (project.address || "") : "";
+  document.getElementById("pjStartDate").value = project ? (project.startDate || "") : "";
+  document.getElementById("pjEndDate").value = project ? (project.endDate || "") : "";
+  document.getElementById("pjStatus").value = project ? project.status : "active";
+  document.getElementById("pjClientVat").value = project ? (project.clientVat || "") : "";
+  document.getElementById("pjBudget").value = project && project.budget ? project.budget : "";
   document.getElementById("pjError").style.display = "none";
+  pjContactRows = project
+    ? contacts.filter(c => c.projectId === project.id).map(c => ({ name: c.name, role: c.role || "", phone: c.phone || "", email: c.email || "" }))
+    : [];
+  renderContactRows();
   openModal("projectModalOverlay");
+}
+
+function renderContactRows() {
+  const container = document.getElementById("pjContacts");
+  container.innerHTML = pjContactRows.map((c, i) => `
+    <div class="contact-row">
+      <input class="contact-name" data-idx="${i}" placeholder="Όνομα" value="${escapeHTML(c.name)}">
+      <input class="contact-role" data-idx="${i}" placeholder="Ρόλος (π.χ. Πελάτης)" value="${escapeHTML(c.role)}">
+      <input class="contact-phone" data-idx="${i}" placeholder="Τηλέφωνο" value="${escapeHTML(c.phone)}">
+      <input class="contact-email" data-idx="${i}" placeholder="Email" value="${escapeHTML(c.email)}">
+      <button type="button" class="contact-remove" data-idx="${i}">&#10005;</button>
+    </div>`).join("");
+  container.querySelectorAll(".contact-name").forEach(inp => inp.addEventListener("input", (e) => { pjContactRows[+e.target.getAttribute("data-idx")].name = e.target.value; }));
+  container.querySelectorAll(".contact-role").forEach(inp => inp.addEventListener("input", (e) => { pjContactRows[+e.target.getAttribute("data-idx")].role = e.target.value; }));
+  container.querySelectorAll(".contact-phone").forEach(inp => inp.addEventListener("input", (e) => { pjContactRows[+e.target.getAttribute("data-idx")].phone = e.target.value; }));
+  container.querySelectorAll(".contact-email").forEach(inp => inp.addEventListener("input", (e) => { pjContactRows[+e.target.getAttribute("data-idx")].email = e.target.value; }));
+  container.querySelectorAll(".contact-remove").forEach(btn => btn.addEventListener("click", (e) => {
+    pjContactRows.splice(+e.target.getAttribute("data-idx"), 1);
+    renderContactRows();
+  }));
+}
+
+document.getElementById("addContactBtn").addEventListener("click", () => {
+  pjContactRows.push({ name: "", role: "", phone: "", email: "" });
+  renderContactRows();
 });
 
 document.getElementById("pjSubmit").addEventListener("click", () => {
   const name = document.getElementById("pjName").value.trim();
-  const client = document.getElementById("pjClient").value.trim();
-  const clientPhone = document.getElementById("pjPhone").value.trim();
-  const clientEmail = document.getElementById("pjEmail").value.trim();
+  const address = document.getElementById("pjAddress").value.trim();
+  const startDate = document.getElementById("pjStartDate").value;
+  const endDate = document.getElementById("pjEndDate").value;
+  const status = document.getElementById("pjStatus").value;
+  const clientVat = document.getElementById("pjClientVat").value.trim();
   const budget = document.getElementById("pjBudget").value;
   const errEl = document.getElementById("pjError");
   if (!name) { errEl.textContent = "Δώσε όνομα έργου."; errEl.style.display = "block"; return; }
-  addProject({ name, client, clientPhone, clientEmail, budget: budget ? parseFloat(budget) : 0 });
+  if (startDate && endDate && endDate < startDate) { errEl.textContent = "Η ημ/νία λήξης δεν μπορεί να είναι πριν την έναρξη."; errEl.style.display = "block"; return; }
+  const projectData = { name, address, startDate, endDate, status, clientVat, budget: budget ? parseFloat(budget) : 0 };
+  if (editingProjectId) {
+    updateProject(editingProjectId, projectData, pjContactRows);
+  } else {
+    createProject(projectData, pjContactRows);
+  }
   closeModal("projectModalOverlay");
 });
 
