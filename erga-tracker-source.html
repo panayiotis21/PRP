@@ -1138,6 +1138,7 @@ function openProjectModal(project) {
   document.getElementById("pjContractNumber").value = project ? (project.contractNumber || "") : "";
   document.getElementById("pjBudget").value = project && project.budget ? project.budget : "";
   document.getElementById("pjError").style.display = "none";
+  pjLocked = !!project;
   pjContactRows = project
     ? contacts.filter(c => c.projectId === project.id).map(c => ({ name: c.name, role: c.role || "", phone: c.phone || "", email: c.email || "" }))
     : [];
@@ -1149,7 +1150,6 @@ function openProjectModal(project) {
       }))
     : [];
   renderFieldRows();
-  pjLocked = !!project;
   applyProjectLock();
   openModal("projectModalOverlay");
 }
@@ -1166,11 +1166,27 @@ function applyProjectLock() {
   document.getElementById("pjSubmit").style.display = pjLocked ? "none" : "block";
 }
 
-document.getElementById("pjLockBtn").addEventListener("click", () => { pjLocked = true; applyProjectLock(); });
-document.getElementById("pjEditBtn").addEventListener("click", () => { pjLocked = false; applyProjectLock(); });
+document.getElementById("pjLockBtn").addEventListener("click", () => { pjLocked = true; renderContactRows(); renderFieldRows(); applyProjectLock(); });
+document.getElementById("pjEditBtn").addEventListener("click", () => { pjLocked = false; renderContactRows(); renderFieldRows(); applyProjectLock(); });
 
 function renderContactRows() {
   const container = document.getElementById("pjContacts");
+  const addBtn = document.getElementById("addContactBtn");
+  if (pjLocked) {
+    addBtn.style.display = "none";
+    const valid = pjContactRows.filter(c => c.name.trim());
+    container.innerHTML = valid.length === 0
+      ? `<div class="empty-note" style="padding:2px 0;">Καμία επαφή.</div>`
+      : valid.map(c => `
+        <div class="contact-card">
+          <span class="c-name">${escapeHTML(c.name)}</span>
+          ${c.role ? `<span>${escapeHTML(c.role)}</span>` : ""}
+          ${c.phone ? `<span>${escapeHTML(c.phone)}</span>` : ""}
+          ${c.email ? `<span>${escapeHTML(c.email)}</span>` : ""}
+        </div>`).join("");
+    return;
+  }
+  addBtn.style.display = "inline-flex";
   container.innerHTML = pjContactRows.map((c, i) => `
     <div class="contact-row">
       <input class="contact-name" data-idx="${i}" placeholder="Όνομα" value="${escapeHTML(c.name)}">
@@ -1196,6 +1212,19 @@ document.getElementById("addContactBtn").addEventListener("click", () => {
 
 function renderFieldRows() {
   const container = document.getElementById("pjFields");
+  const addBtn = document.getElementById("addFieldBtn");
+  if (pjLocked) {
+    addBtn.style.display = "none";
+    const valid = pjFieldRows.filter(f => f.label.trim());
+    container.innerHTML = valid.length === 0
+      ? `<div class="empty-note" style="padding:2px 0;">Καμία επιπλέον πληροφορία.</div>`
+      : `<div class="kv-list">${valid.map(f => {
+          const fileHref = (f.storagePath && !f.removeFile) ? supabase.storage.from("project-files").getPublicUrl(f.storagePath).data.publicUrl : null;
+          return `<div class="kv-item"><b>${escapeHTML(f.label)}:</b> ${escapeHTML(f.value || "—")}${fileHref ? ` · <a href="${fileHref}" target="_blank" rel="noopener" title="${fmtBytes(f.fileSize)}">${escapeHTML(fileNameFromPath(f.storagePath))}</a>` : ""}</div>`;
+        }).join("")}</div>`;
+    return;
+  }
+  addBtn.style.display = "inline-flex";
   container.innerHTML = pjFieldRows.map((f, i) => {
     const fileName = f.pendingFile ? f.pendingFile.name : (f.storagePath && !f.removeFile ? fileNameFromPath(f.storagePath) : null);
     const fileHref = (!f.pendingFile && f.storagePath && !f.removeFile)
