@@ -136,8 +136,14 @@
   .contact-remove { color: #B0AB98; font-size: 15px; text-align: center; }
   .contact-remove:hover { color: #A6402C; }
 
-  .kv-row { display: grid; grid-template-columns: 1fr 1fr 26px; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .kv-row { display: grid; grid-template-columns: 1fr 1fr auto 26px; gap: 8px; margin-bottom: 8px; align-items: center; }
   .kv-row input { padding: 8px 9px; border: 1px solid #D8D3C5; border-radius: 3px; font-size: 12.5px; background: #FFFFFF; color: #221F1A; width: 100%; }
+  .kv-file-attach { font-size: 15px; color: #8A8676; padding: 4px; }
+  .kv-file-attach:hover { color: #221F1A; }
+  .kv-file-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; padding: 4px 8px; border-radius: 10px; background: #EFEBE0; color: #221F1A; white-space: nowrap; max-width: 140px; }
+  .kv-file-chip a { color: #221F1A; text-decoration: underline; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kv-file-chip button { color: #8A8676; font-size: 12px; }
+  .kv-file-chip button:hover { color: #A6402C; }
   .kv-list { font-size: 12.5px; color: #6E6A5F; }
   .kv-list .kv-item { padding: 3px 0; }
   .kv-list .kv-item b { color: #221F1A; }
@@ -239,13 +245,9 @@
         <button type="button" id="addContactBtn" class="btn-outline" style="margin-top:2px; font-size:12px; padding:6px 10px; width:auto; display:inline-flex;">+ Προσθήκη επαφής</button>
       </div>
       <div class="field">
-        <label>Επιπλέον στοιχεία (π.χ. Πολεοδομική Άδεια, Αρ. πρωτοκόλλου…)</label>
+        <label>Επιπλέον στοιχεία (π.χ. Πολεοδομική Άδεια, Αρ. πρωτοκόλλου…) — με δυνατότητα επισύναψης αρχείου ανά γραμμή</label>
         <div id="pjFields"></div>
         <button type="button" id="addFieldBtn" class="btn-outline" style="margin-top:2px; font-size:12px; padding:6px 10px; width:auto; display:inline-flex;">+ Προσθήκη γραμμής</button>
-      </div>
-      <div class="field">
-        <label>Αρχεία έργου</label>
-        <div id="pjFilesList"></div>
       </div>
       <div class="err-text" id="pjError" style="display:none;"></div>
       <button class="btn-submit" style="background:#C1571F;" id="pjSubmit">Δημιουργία έργου</button>
@@ -317,7 +319,6 @@ let projects = [];
 let entries = [];
 let contacts = [];
 let fields = [];
-let projectFiles = [];
 let activeProjectId = null;
 let showAllInvoices = false;
 let sidebarStatusFilter = "open";
@@ -383,34 +384,34 @@ function mapContact(row) {
   return { id: row.id, projectId: row.project_id, name: row.name, role: row.role, phone: row.phone, email: row.email };
 }
 function mapField(row) {
-  return { id: row.id, projectId: row.project_id, label: row.label, value: row.value };
-}
-function mapFile(row) {
   return {
-    id: row.id, projectId: row.project_id, label: row.label, storagePath: row.storage_path, size: Number(row.size || 0),
-    url: supabase.storage.from("project-files").getPublicUrl(row.storage_path).data.publicUrl
+    id: row.id, projectId: row.project_id, label: row.label, value: row.value,
+    storagePath: row.storage_path, fileSize: row.file_size ? Number(row.file_size) : null,
+    fileUrl: row.storage_path ? supabase.storage.from("project-files").getPublicUrl(row.storage_path).data.publicUrl : null
   };
+}
+function fileNameFromPath(path) {
+  if (!path) return "";
+  return path.split("/").pop().replace(/^\d+_/, "");
 }
 const PROJECT_STATUS_LABELS = { active: "Ενεργό", on_hold: "Σε αναμονή", completed: "Ολοκληρωμένο", cancelled: "Ακυρωμένο" };
 
 async function loadData() {
   loading = true;
   render();
-  const [projRes, entRes, contactRes, fieldRes, fileRes] = await Promise.all([
+  const [projRes, entRes, contactRes, fieldRes] = await Promise.all([
     supabase.from("projects").select("*").order("created_at", { ascending: true }),
     supabase.from("entries").select("*"),
     supabase.from("project_contacts").select("*").order("created_at", { ascending: true }),
-    supabase.from("project_fields").select("*").order("sort_order", { ascending: true }),
-    supabase.from("project_files").select("*").order("created_at", { ascending: true })
+    supabase.from("project_fields").select("*").order("sort_order", { ascending: true })
   ]);
-  if (projRes.error || entRes.error || contactRes.error || fieldRes.error || fileRes.error) {
+  if (projRes.error || entRes.error || contactRes.error || fieldRes.error) {
     saveError = true;
   } else {
     projects = projRes.data.map(mapProject);
     entries = entRes.data.map(mapEntry);
     contacts = contactRes.data.map(mapContact);
     fields = fieldRes.data.map(mapField);
-    projectFiles = fileRes.data.map(mapFile);
     if (projects.length > 0 && !activeProjectId) activeProjectId = projects[0].id;
   }
   loading = false;
@@ -585,7 +586,7 @@ function renderMain() {
             ${c.email ? `<span>${escapeHTML(c.email)}</span>` : ""}
           </div>`).join("")}</div>` : ""}
         ${projectFields.length ? `<div class="kv-list" style="margin-top:8px;">${projectFields.map(f => `
-          <div class="kv-item"><b>${escapeHTML(f.label)}:</b> ${escapeHTML(f.value || "—")}</div>`).join("")}</div>` : ""}
+          <div class="kv-item"><b>${escapeHTML(f.label)}:</b> ${escapeHTML(f.value || "—")}${f.fileUrl ? ` · <a href="${f.fileUrl}" target="_blank" rel="noopener" title="${fmtBytes(f.fileSize)}">${escapeHTML(fileNameFromPath(f.storagePath))}</a>` : ""}</div>`).join("")}</div>` : ""}
       </div>
       <div class="action-group no-print">
         <button class="btn-outline" style="width:auto; padding:7px 11px; font-size:12.5px;" id="editProjectBtn">Στοιχεία έργου</button>
@@ -942,71 +943,6 @@ function fmtBytes(bytes) {
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
-function filesSectionHTML(projectId) {
-  const files = projectFiles.filter(f => f.projectId === projectId);
-  const rows = files.length === 0
-    ? `<div class="empty-table">Δεν έχουν ανέβει αρχεία.</div>`
-    : `<div id="entriesWrap">${files.map(f => `
-      <div class="file-row">
-        <div>
-          <a href="${f.url}" target="_blank" rel="noopener">${escapeHTML(f.label)}</a>
-          <div class="file-meta">${fmtBytes(f.size)}</div>
-        </div>
-        <button class="del-btn" data-delete-file="${f.id}">&#10005;</button>
-      </div>`).join("")}</div>`;
-  return `
-    ${rows}
-    <div class="field-row" style="margin-top:10px; align-items:end;">
-      <div class="field" style="margin-bottom:0;"><label>Ονομασία αρχείου</label><input id="fileLabelInput" placeholder="π.χ. Πολεοδομική Άδεια"></div>
-      <div class="field" style="margin-bottom:0;"><label>Αρχείο</label><input type="file" id="fileUploadInput"></div>
-    </div>
-    <button type="button" class="btn-outline" id="fileUploadBtn" style="margin-top:8px; width:auto; padding:8px 13px; font-size:12.5px;">+ Ανέβασμα αρχείου</button>
-    <span id="fileUploadStatus" style="font-size:12px; color:#A6402C; margin-left:8px;"></span>
-  `;
-}
-
-async function uploadProjectFile(projectId, file, label, onDone) {
-  const path = `${projectId}/${Date.now()}_${file.name.replace(/[\/\\]/g, "_")}`;
-  const { error: uploadError } = await supabase.storage.from("project-files").upload(path, file);
-  if (uploadError) { saveError = true; render(); return; }
-  const { data, error } = await supabase.from("project_files").insert({
-    project_id: projectId, label, storage_path: path, size: file.size
-  }).select().single();
-  if (error) { saveError = true; render(); return; }
-  projectFiles.push(mapFile(data));
-  if (onDone) onDone(); else render();
-}
-
-async function deleteProjectFile(fileId, onDone) {
-  const file = projectFiles.find(f => f.id === fileId);
-  if (!file) return;
-  await supabase.storage.from("project-files").remove([file.storagePath]);
-  const { error } = await supabase.from("project_files").delete().eq("id", fileId);
-  if (error) { saveError = true; render(); return; }
-  projectFiles = projectFiles.filter(f => f.id !== fileId);
-  if (onDone) onDone(); else render();
-}
-
-function renderModalFiles(projectId) {
-  const wrap = document.getElementById("pjFilesList");
-  if (!projectId) {
-    wrap.innerHTML = `<div class="empty-note" style="padding:8px 0;">Αποθήκευσε πρώτα το έργο για να προσθέσεις αρχεία.</div>`;
-    return;
-  }
-  wrap.innerHTML = filesSectionHTML(projectId);
-  const fileUploadBtn = document.getElementById("fileUploadBtn");
-  if (fileUploadBtn) fileUploadBtn.addEventListener("click", () => {
-    const labelEl = document.getElementById("fileLabelInput");
-    const inputEl = document.getElementById("fileUploadInput");
-    const statusEl = document.getElementById("fileUploadStatus");
-    const file = inputEl.files[0];
-    if (!file) { statusEl.textContent = "Επίλεξε πρώτα ένα αρχείο."; return; }
-    const label = labelEl.value.trim() || file.name;
-    uploadProjectFile(projectId, file, label, () => renderModalFiles(projectId));
-  });
-  document.querySelectorAll("[data-delete-file]").forEach(btn => btn.addEventListener("click", () => deleteProjectFile(btn.getAttribute("data-delete-file"), () => renderModalFiles(projectId))));
-}
-
 function csvEscape(v) {
   const s = String(v ?? "");
   return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -1073,12 +1009,30 @@ async function saveProjectContacts(projectId, contactRows) {
 }
 
 async function saveProjectFields(projectId, fieldRows) {
+  const oldPaths = fields.filter(f => f.projectId === projectId && f.storagePath).map(f => f.storagePath);
   const validRows = fieldRows.filter(f => f.label.trim());
+
+  for (const row of validRows) {
+    if (row.removeFile) { row.storagePath = null; row.fileSize = null; }
+    if (row.pendingFile) {
+      const path = `${projectId}/${Date.now()}_${row.pendingFile.name.replace(/[\/\\]/g, "_")}`;
+      const { error: uploadError } = await supabase.storage.from("project-files").upload(path, row.pendingFile);
+      if (!uploadError) { row.storagePath = path; row.fileSize = row.pendingFile.size; }
+    }
+  }
+
+  const keptPaths = new Set(validRows.map(f => f.storagePath).filter(Boolean));
+  const pathsToDelete = oldPaths.filter(p => !keptPaths.has(p));
+  if (pathsToDelete.length) await supabase.storage.from("project-files").remove(pathsToDelete);
+
   await supabase.from("project_fields").delete().eq("project_id", projectId);
   fields = fields.filter(f => f.projectId !== projectId);
   if (validRows.length === 0) { render(); return; }
   const { data, error } = await supabase.from("project_fields").insert(
-    validRows.map((f, i) => ({ project_id: projectId, label: f.label.trim(), value: f.value.trim() || null, sort_order: i }))
+    validRows.map((f, i) => ({
+      project_id: projectId, label: f.label.trim(), value: f.value.trim() || null,
+      storage_path: f.storagePath || null, file_size: f.fileSize || null, sort_order: i
+    }))
   ).select();
   if (error) { saveError = true; render(); return; }
   data.forEach(d => fields.push(mapField(d)));
@@ -1086,14 +1040,13 @@ async function saveProjectFields(projectId, fieldRows) {
 }
 
 async function deleteProject(id) {
-  const filesToRemove = projectFiles.filter(f => f.projectId === id).map(f => f.storagePath);
+  const filesToRemove = fields.filter(f => f.projectId === id && f.storagePath).map(f => f.storagePath);
   const { error } = await supabase.from("projects").delete().eq("id", id);
   if (error) { saveError = true; render(); return; }
   projects = projects.filter(p => p.id !== id);
   entries = entries.filter(e => e.projectId !== id);
   contacts = contacts.filter(c => c.projectId !== id);
   fields = fields.filter(f => f.projectId !== id);
-  projectFiles = projectFiles.filter(f => f.projectId !== id);
   if (activeProjectId === id) activeProjectId = projects.length ? projects[0].id : null;
   render();
   if (filesToRemove.length) await supabase.storage.from("project-files").remove(filesToRemove);
@@ -1169,10 +1122,12 @@ function openProjectModal(project) {
     : [];
   renderContactRows();
   pjFieldRows = project
-    ? fields.filter(f => f.projectId === project.id).map(f => ({ label: f.label, value: f.value || "" }))
+    ? fields.filter(f => f.projectId === project.id).map(f => ({
+        label: f.label, value: f.value || "", storagePath: f.storagePath, fileSize: f.fileSize,
+        pendingFile: null, removeFile: false
+      }))
     : [];
   renderFieldRows();
-  renderModalFiles(project ? project.id : null);
   openModal("projectModalOverlay");
 }
 
@@ -1203,14 +1158,42 @@ document.getElementById("addContactBtn").addEventListener("click", () => {
 
 function renderFieldRows() {
   const container = document.getElementById("pjFields");
-  container.innerHTML = pjFieldRows.map((f, i) => `
+  container.innerHTML = pjFieldRows.map((f, i) => {
+    const fileName = f.pendingFile ? f.pendingFile.name : (f.storagePath && !f.removeFile ? fileNameFromPath(f.storagePath) : null);
+    const fileHref = (!f.pendingFile && f.storagePath && !f.removeFile)
+      ? supabase.storage.from("project-files").getPublicUrl(f.storagePath).data.publicUrl
+      : null;
+    const fileTitle = f.pendingFile ? fmtBytes(f.pendingFile.size) : (f.fileSize ? fmtBytes(f.fileSize) : "");
+    const fileControl = fileName
+      ? `<span class="kv-file-chip">${fileHref ? `<a href="${fileHref}" target="_blank" rel="noopener" title="${fileTitle}">${escapeHTML(fileName)}</a>` : `<span title="${fileTitle}">${escapeHTML(fileName)}</span>`}<button type="button" class="field-file-remove" data-idx="${i}" title="Αφαίρεση αρχείου">&#10005;</button></span>`
+      : `<button type="button" class="kv-file-attach" data-idx="${i}" title="Επισύναψη αρχείου">&#128206;</button>`;
+    return `
     <div class="kv-row">
       <input class="field-label" data-idx="${i}" placeholder="Ονομασία (π.χ. Πολεοδομική Άδεια)" value="${escapeHTML(f.label)}">
       <input class="field-value" data-idx="${i}" placeholder="Τιμή (π.χ. Αρ. 123/2024)" value="${escapeHTML(f.value)}">
+      <div>${fileControl}<input type="file" class="field-file-input" data-idx="${i}" style="display:none;"></div>
       <button type="button" class="contact-remove" data-idx="${i}">&#10005;</button>
-    </div>`).join("");
+    </div>`;
+  }).join("");
   container.querySelectorAll(".field-label").forEach(inp => inp.addEventListener("input", (e) => { pjFieldRows[+e.target.getAttribute("data-idx")].label = e.target.value; }));
   container.querySelectorAll(".field-value").forEach(inp => inp.addEventListener("input", (e) => { pjFieldRows[+e.target.getAttribute("data-idx")].value = e.target.value; }));
+  container.querySelectorAll(".kv-file-attach").forEach(btn => btn.addEventListener("click", (e) => {
+    container.querySelector(`.field-file-input[data-idx="${e.currentTarget.getAttribute("data-idx")}"]`).click();
+  }));
+  container.querySelectorAll(".field-file-input").forEach(inp => inp.addEventListener("change", (e) => {
+    const idx = +e.target.getAttribute("data-idx");
+    if (e.target.files[0]) {
+      pjFieldRows[idx].pendingFile = e.target.files[0];
+      pjFieldRows[idx].removeFile = false;
+      renderFieldRows();
+    }
+  }));
+  container.querySelectorAll(".field-file-remove").forEach(btn => btn.addEventListener("click", (e) => {
+    const idx = +e.currentTarget.getAttribute("data-idx");
+    pjFieldRows[idx].pendingFile = null;
+    pjFieldRows[idx].removeFile = true;
+    renderFieldRows();
+  }));
   container.querySelectorAll(".contact-remove").forEach(btn => btn.addEventListener("click", (e) => {
     pjFieldRows.splice(+e.target.getAttribute("data-idx"), 1);
     renderFieldRows();
@@ -1218,7 +1201,7 @@ function renderFieldRows() {
 }
 
 document.getElementById("addFieldBtn").addEventListener("click", () => {
-  pjFieldRows.push({ label: "", value: "" });
+  pjFieldRows.push({ label: "", value: "", storagePath: null, fileSize: null, pendingFile: null, removeFile: false });
   renderFieldRows();
 });
 
