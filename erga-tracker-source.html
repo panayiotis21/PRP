@@ -472,6 +472,16 @@ function destroyCharts() {
   charts = {};
 }
 
+function projectSortKey(name) {
+  const m = (name || "").match(/^(\d+)/);
+  return { num: m ? parseInt(m[1], 10) : Infinity, name: name || "" };
+}
+function compareProjects(a, b) {
+  const ka = projectSortKey(a.name), kb = projectSortKey(b.name);
+  if (ka.num !== kb.num) return ka.num - kb.num;
+  return ka.name.localeCompare(kb.name, "el");
+}
+
 function renderSidebar() {
   const filterEl = document.getElementById("sidebarStatusFilter");
   if (filterEl) filterEl.value = sidebarStatusFilter;
@@ -479,7 +489,7 @@ function renderSidebar() {
     if (sidebarStatusFilter === "all") return true;
     if (sidebarStatusFilter === "open") return p.status === "active" || p.status === "on_hold";
     return p.status === sidebarStatusFilter;
-  });
+  }).sort(compareProjects);
   document.getElementById("projectCount").textContent = `${visibleProjects.length} έργα`;
   const list = document.getElementById("projectList");
   if (loading) { list.innerHTML = `<div class="loading-note">Φόρτωση…</div>`; return; }
@@ -491,8 +501,7 @@ function renderSidebar() {
     list.innerHTML = `<div class="empty-note">Δεν υπάρχουν έργα με αυτό το φίλτρο.</div>`;
     return;
   }
-  list.innerHTML = visibleProjects.map((p) => {
-    const i = projects.indexOf(p);
+  list.innerHTML = visibleProjects.map((p, i) => {
     const st = computeStats(entries.filter(e => e.projectId === p.id));
     const active = !showAllInvoices && p.id === activeProjectId;
     return `
@@ -732,8 +741,9 @@ function drawByProjectChart(canvasId) {
     ctx.fillText("Δεν υπάρχουν ακόμη έργα.", 10, 30);
     return;
   }
-  const labels = projects.map(p => p.name);
-  const values = projects.map(p => computeStats(entries.filter(e => e.projectId === p.id)).profit);
+  const sortedProjects = projects.slice().sort(compareProjects);
+  const labels = sortedProjects.map(p => p.name);
+  const values = sortedProjects.map(p => computeStats(entries.filter(e => e.projectId === p.id)).profit);
   charts[canvasId] = new Chart(el, {
     type: "bar",
     data: { labels, datasets: [{ label: "Κέρδος / ζημιά", data: values, backgroundColor: values.map(v => v >= 0 ? "#2F6B4F" : "#A6402C") }] },
@@ -841,7 +851,7 @@ function renderAllInvoices(main, errHTML) {
       </div>
       <select id="allProjectFilter" style="padding:6px 10px; border:1px solid #D8D3C5; border-radius:3px; font-size:12.5px; background:#F8F6F1;">
         <option value="all">Όλα τα έργα</option>
-        ${projects.map(p => `<option value="${p.id}" ${allFilterProject === p.id ? "selected" : ""}>${escapeHTML(p.name)}</option>`).join("")}
+        ${projects.slice().sort(compareProjects).map(p => `<option value="${p.id}" ${allFilterProject === p.id ? "selected" : ""}>${escapeHTML(p.name)}</option>`).join("")}
       </select>
     </div>
     <div class="filter-row2">
@@ -1257,7 +1267,7 @@ function renderAllocations() {
   container.innerHTML = allocations.map((a, i) => `
     <div class="alloc-row ${allocations.length > 1 ? "" : "single"}">
       <select class="alloc-project" data-idx="${i}">
-        ${projects.map(p => `<option value="${p.id}" ${a.projectId === p.id ? "selected" : ""}>${escapeHTML(p.name)}</option>`).join("")}
+        ${projects.slice().sort(compareProjects).map(p => `<option value="${p.id}" ${a.projectId === p.id ? "selected" : ""}>${escapeHTML(p.name)}</option>`).join("")}
       </select>
       <input class="alloc-percent" data-idx="${i}" type="number" min="0" max="100" step="0.1" value="${a.percent}">
       ${allocations.length > 1 ? `<button type="button" class="alloc-remove" data-idx="${i}">&#10005;</button>` : ""}
