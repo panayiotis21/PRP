@@ -104,6 +104,7 @@
   .field input, .field select { width: 100%; padding: 9px 11px; border: 1px solid #D8D3C5; border-radius: 3px; font-size: 13.5px; background: #FFFFFF; color: #221F1A; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   #projectModalOverlay input:disabled, #projectModalOverlay select:disabled { background: #EFEBE0; color: #6E6A5F; }
+  #pjBudgetTotalPreview { background: #EFEBE0; font-weight: 600; }
   #projectModalOverlay .modal-body button:disabled { opacity: 0.35; cursor: default; }
   .total-box { display: flex; justify-content: space-between; font-size: 13px; padding: 10px 12px; background: #EFEBE0; margin-bottom: 14px; }
   .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px; }
@@ -227,12 +228,12 @@
       </div>
       <div class="field-row">
         <div class="field"><label>Όνομα έργου</label><input id="pjName" placeholder="π.χ. Κατοικία Δήμητρα"></div>
-        <div class="field"><label>Αριθμός έργου (προαιρετικό)</label><input id="pjNumber" type="number"></div>
+        <div class="field"><label>Αριθμός έργου</label><input id="pjNumber" type="number"></div>
       </div>
-      <div class="field"><label>Διεύθυνση / τοποθεσία (προαιρετικό)</label><input id="pjAddress"></div>
+      <div class="field"><label>Διεύθυνση / τοποθεσία</label><input id="pjAddress"></div>
       <div class="field-row">
-        <div class="field"><label>Ημ/νία έναρξης (προαιρετικό)</label><input id="pjStartDate" type="date"></div>
-        <div class="field"><label>Αναμ. ημ/νία λήξης (προαιρετικό)</label><input id="pjEndDate" type="date"></div>
+        <div class="field"><label>Ημ/νία έναρξης</label><input id="pjStartDate" type="date"></div>
+        <div class="field"><label>Αναμ. ημ/νία λήξης</label><input id="pjEndDate" type="date"></div>
       </div>
       <div class="field">
         <label>Κατάσταση</label>
@@ -243,14 +244,14 @@
           <option value="cancelled">Ακυρωμένο</option>
         </select>
       </div>
-      <div class="field-row">
-        <div class="field"><label>Προϋπολογισμός χωρίς ΦΠΑ € (προαιρετικό)</label><input id="pjBudget" type="number"></div>
-        <div class="field"><label>Συντελεστής ΦΠΑ</label><select id="pjBudgetVat"></select></div>
+      <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr;">
+        <div class="field"><label>Ποσό συμβολαίου €</label><input id="pjBudget" type="number"></div>
+        <div class="field"><label>ΦΠΑ</label><select id="pjBudgetVat"></select></div>
+        <div class="field"><label>Σύνολο</label><input id="pjBudgetTotalPreview" readonly></div>
       </div>
-      <div class="total-box"><span style="color:#6E6A5F;">Προϋπολογισμός με ΦΠΑ</span><span class="num" style="font-weight:600;" id="pjBudgetTotalPreview">0,00 €</span></div>
       <div class="field-row">
-        <div class="field"><label>ΑΦΜ πελάτη (προαιρετικό)</label><input id="pjClientVat"></div>
-        <div class="field"><label>Αριθμός συμβολαίου (προαιρετικό)</label><input id="pjContractNumber"></div>
+        <div class="field"><label>ΑΦΜ πελάτη</label><input id="pjClientVat"></div>
+        <div class="field"><label>Αριθμός συμβολαίου</label><input id="pjContractNumber"></div>
       </div>
       <div class="field">
         <label>Επαφές έργου (π.χ. πελάτης, μηχανικός, επιβλέπων)</label>
@@ -291,7 +292,7 @@
       </div>
       <div class="field"><label>Περιγραφή</label><input id="enDescription" placeholder="π.χ. 2η πιστοποίηση εργασιών"></div>
       <div class="field">
-        <label>Ετικέτες / Φάση έργου (προαιρετικό)</label>
+        <label>Ετικέτες / Φάση έργου</label>
         <div id="enTagsWrap" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;"></div>
         <div class="tag-input-row">
           <input id="enTagInput" list="enTagList" placeholder="π.χ. Θεμελίωση, Σκελετός…">
@@ -301,7 +302,7 @@
       </div>
       <div class="field" id="enSupplierField"><label>Προμηθευτής</label><input id="enSupplier" list="supplierList" placeholder="π.χ. Ελαστικά Παπαδόπουλος"></div>
       <datalist id="supplierList"></datalist>
-      <div class="field"><label>Αριθμός τιμολογίου (προαιρετικό)</label><input id="enInvoice"></div>
+      <div class="field"><label>Αριθμός τιμολογίου</label><input id="enInvoice"></div>
       <div class="field"><label>Τρόπος πληρωμής</label><select id="enPaymentMethod"></select></div>
       <div class="field">
         <label>Γραμμές ΦΠΑ</label>
@@ -1169,7 +1170,7 @@ function openProjectModal(project) {
 function updatePjBudgetPreview() {
   const net = parseFloat(document.getElementById("pjBudget").value) || 0;
   const rate = parseFloat(document.getElementById("pjBudgetVat").value) || 0;
-  document.getElementById("pjBudgetTotalPreview").textContent = fmt(net + net * rate / 100) + " €";
+  document.getElementById("pjBudgetTotalPreview").value = fmt(net + net * rate / 100) + " €";
 }
 document.getElementById("pjBudget").addEventListener("input", updatePjBudgetPreview);
 document.getElementById("pjBudgetVat").addEventListener("change", updatePjBudgetPreview);
