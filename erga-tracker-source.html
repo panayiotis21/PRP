@@ -225,7 +225,10 @@
           <button type="button" class="filter-btn" id="pjEditBtn">&#9998; Επεξεργασία</button>
         </div>
       </div>
-      <div class="field"><label>Όνομα έργου</label><input id="pjName" placeholder="π.χ. Οικοδομή Λεωφόρος Αθηνών"></div>
+      <div class="field-row">
+        <div class="field"><label>Όνομα έργου</label><input id="pjName" placeholder="π.χ. Κατοικία Δήμητρα"></div>
+        <div class="field"><label>Αριθμός έργου (προαιρετικό)</label><input id="pjNumber" type="number"></div>
+      </div>
       <div class="field"><label>Διεύθυνση / τοποθεσία (προαιρετικό)</label><input id="pjAddress"></div>
       <div class="field-row">
         <div class="field"><label>Ημ/νία έναρξης (προαιρετικό)</label><input id="pjStartDate" type="date"></div>
@@ -386,7 +389,8 @@ function mapProject(row) {
   return {
     id: row.id, name: row.name, address: row.address, budget: Number(row.budget || 0),
     startDate: row.start_date, endDate: row.end_date, status: row.status || "active",
-    clientVat: row.client_vat, contractNumber: row.contract_number
+    clientVat: row.client_vat, contractNumber: row.contract_number,
+    projectNumber: row.project_number !== null && row.project_number !== undefined ? Number(row.project_number) : null
   };
 }
 function mapContact(row) {
@@ -472,14 +476,11 @@ function destroyCharts() {
   charts = {};
 }
 
-function projectSortKey(name) {
-  const m = (name || "").match(/^(\d+)/);
-  return { num: m ? parseInt(m[1], 10) : Infinity, name: name || "" };
-}
 function compareProjects(a, b) {
-  const ka = projectSortKey(a.name), kb = projectSortKey(b.name);
-  if (ka.num !== kb.num) return ka.num - kb.num;
-  return ka.name.localeCompare(kb.name, "el");
+  const na = a.projectNumber !== null && a.projectNumber !== undefined ? a.projectNumber : Infinity;
+  const nb = b.projectNumber !== null && b.projectNumber !== undefined ? b.projectNumber : Infinity;
+  if (na !== nb) return na - nb;
+  return (a.name || "").localeCompare(b.name || "", "el");
 }
 
 function renderSidebar() {
@@ -506,7 +507,7 @@ function renderSidebar() {
     const active = !showAllInvoices && p.id === activeProjectId;
     return `
       <button class="project-item ${active ? "active" : ""}" data-project-id="${p.id}">
-        <div class="code num">Έ-${String(i + 1).padStart(2, "0")}</div>
+        <div class="code num">Έ-${String(p.projectNumber !== null && p.projectNumber !== undefined ? p.projectNumber : i + 1).padStart(2, "0")}</div>
         <div class="name">${escapeHTML(p.name)}</div>
         <div class="pl num ${st.profit >= 0 ? "pos" : "neg"}">${st.profit >= 0 ? "+" : ""}${fmt(st.profit)} €</div>
       </button>`;
@@ -990,7 +991,7 @@ async function createProject(project, contactRows, fieldRows) {
   const { data, error } = await supabase.from("projects").insert({
     name: project.name, address: project.address || null, start_date: project.startDate || null,
     end_date: project.endDate || null, status: project.status, client_vat: project.clientVat || null,
-    contract_number: project.contractNumber || null, budget: project.budget
+    contract_number: project.contractNumber || null, project_number: project.projectNumber, budget: project.budget
   }).select().single();
   if (error) { saveError = true; render(); return; }
   const newProject = mapProject(data);
@@ -1005,7 +1006,7 @@ async function updateProject(id, project, contactRows, fieldRows) {
   const { data, error } = await supabase.from("projects").update({
     name: project.name, address: project.address || null, start_date: project.startDate || null,
     end_date: project.endDate || null, status: project.status, client_vat: project.clientVat || null,
-    contract_number: project.contractNumber || null, budget: project.budget
+    contract_number: project.contractNumber || null, project_number: project.projectNumber, budget: project.budget
   }).eq("id", id).select().single();
   if (error) { saveError = true; render(); return; }
   projects = projects.map(p => p.id === id ? mapProject(data) : p);
@@ -1128,6 +1129,7 @@ function openProjectModal(project) {
   document.getElementById("projectModalTitle").textContent = project ? "Στοιχεία έργου" : "Νέο έργο";
   document.getElementById("pjSubmit").textContent = project ? "Αποθήκευση αλλαγών" : "Δημιουργία έργου";
   document.getElementById("pjName").value = project ? project.name : "";
+  document.getElementById("pjNumber").value = project && project.projectNumber !== null && project.projectNumber !== undefined ? project.projectNumber : "";
   document.getElementById("pjAddress").value = project ? (project.address || "") : "";
   document.getElementById("pjStartDate").value = project ? (project.startDate || "") : "";
   document.getElementById("pjEndDate").value = project ? (project.endDate || "") : "";
@@ -1243,6 +1245,8 @@ document.getElementById("addFieldBtn").addEventListener("click", () => {
 
 document.getElementById("pjSubmit").addEventListener("click", () => {
   const name = document.getElementById("pjName").value.trim();
+  const numberRaw = document.getElementById("pjNumber").value;
+  const projectNumber = numberRaw !== "" ? parseInt(numberRaw, 10) : null;
   const address = document.getElementById("pjAddress").value.trim();
   const startDate = document.getElementById("pjStartDate").value;
   const endDate = document.getElementById("pjEndDate").value;
@@ -1253,7 +1257,7 @@ document.getElementById("pjSubmit").addEventListener("click", () => {
   const errEl = document.getElementById("pjError");
   if (!name) { errEl.textContent = "Δώσε όνομα έργου."; errEl.style.display = "block"; return; }
   if (startDate && endDate && endDate < startDate) { errEl.textContent = "Η ημ/νία λήξης δεν μπορεί να είναι πριν την έναρξη."; errEl.style.display = "block"; return; }
-  const projectData = { name, address, startDate, endDate, status, clientVat, contractNumber, budget: budget ? parseFloat(budget) : 0 };
+  const projectData = { name, projectNumber, address, startDate, endDate, status, clientVat, contractNumber, budget: budget ? parseFloat(budget) : 0 };
   if (editingProjectId) {
     updateProject(editingProjectId, projectData, pjContactRows, pjFieldRows);
   } else {
