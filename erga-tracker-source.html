@@ -103,6 +103,8 @@
   .field label { font-size: 11.5px; color: #6E6A5F; margin-bottom: 5px; display: block; }
   .field input, .field select { width: 100%; padding: 9px 11px; border: 1px solid #D8D3C5; border-radius: 3px; font-size: 13.5px; background: #FFFFFF; color: #221F1A; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  #projectModalOverlay input:disabled, #projectModalOverlay select:disabled { background: #EFEBE0; color: #6E6A5F; }
+  #projectModalOverlay .modal-body button:disabled { opacity: 0.35; cursor: default; }
   .total-box { display: flex; justify-content: space-between; font-size: 13px; padding: 10px 12px; background: #EFEBE0; margin-bottom: 14px; }
   .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px; }
   .err-text { color: #A6402C; font-size: 12px; margin-top: 8px; }
@@ -217,6 +219,12 @@
       <button class="modal-close" data-close="projectModalOverlay">&#10005;</button>
     </div>
     <div class="modal-body">
+      <div class="field" id="pjLockField" style="display:none;">
+        <div class="filter-group">
+          <button type="button" class="filter-btn" id="pjLockBtn">&#128274; Κλειδωμένο</button>
+          <button type="button" class="filter-btn" id="pjEditBtn">&#9998; Επεξεργασία</button>
+        </div>
+      </div>
       <div class="field"><label>Όνομα έργου</label><input id="pjName" placeholder="π.χ. Οικοδομή Λεωφόρος Αθηνών"></div>
       <div class="field"><label>Διεύθυνση / τοποθεσία (προαιρετικό)</label><input id="pjAddress"></div>
       <div class="field-row">
@@ -323,6 +331,7 @@ let activeProjectId = null;
 let showAllInvoices = false;
 let sidebarStatusFilter = "open";
 let editingProjectId = null;
+let pjLocked = false;
 let pjContactRows = [];
 let pjFieldRows = [];
 let filterType = "all";
@@ -1128,8 +1137,25 @@ function openProjectModal(project) {
       }))
     : [];
   renderFieldRows();
+  pjLocked = !!project;
+  applyProjectLock();
   openModal("projectModalOverlay");
 }
+
+function applyProjectLock() {
+  document.getElementById("pjLockField").style.display = editingProjectId ? "block" : "none";
+  document.getElementById("pjLockBtn").classList.toggle("active", pjLocked);
+  document.getElementById("pjEditBtn").classList.toggle("active", !pjLocked);
+  const modalBody = document.querySelector("#projectModalOverlay .modal-body");
+  modalBody.querySelectorAll("input, select, button").forEach(el => {
+    if (el.id === "pjLockBtn" || el.id === "pjEditBtn") return;
+    el.disabled = pjLocked;
+  });
+  document.getElementById("pjSubmit").style.display = pjLocked ? "none" : "block";
+}
+
+document.getElementById("pjLockBtn").addEventListener("click", () => { pjLocked = true; applyProjectLock(); });
+document.getElementById("pjEditBtn").addEventListener("click", () => { pjLocked = false; applyProjectLock(); });
 
 function renderContactRows() {
   const container = document.getElementById("pjContacts");
