@@ -424,7 +424,21 @@ function fileNameFromPath(path) {
   return path.split("/").pop().replace(/^\d+_/, "");
 }
 const PROJECT_STATUS_LABELS = { active: "Ενεργό", on_hold: "Σε αναμονή", completed: "Ολοκληρωμένο", cancelled: "Ακυρωμένο" };
-const DOCUMENT_CATEGORIES = ["Σχέδια", "Άδειες", "Οικόπεδο", "Αίτηση ΦΠΑ", "Γνωστοποίηση εργοταξίου", "ΚΕΝΑΚ", "Άλλο"];
+const DOCUMENT_TAXONOMY = {
+  "Σχέδια": ["Αρχιτεκτονικά", "Στατικά", "Ηλεκτρολογικά", "Μηχανολογικά"],
+  "Άδειες": ["Οικοδομική Άδεια", "Πολεοδομική Άδεια"],
+  "Οικόπεδο": ["Οικόπεδο"],
+  "Αίτηση ΦΠΑ": ["Αίτηση ΦΠΑ"],
+  "Γνωστοποίηση εργοταξίου": ["Γνωστοποίηση εργοταξίου"],
+  "ΚΕΝΑΚ": ["ΚΕΝΑΚ"],
+  "Άλλο": ["Άλλο"]
+};
+function categoryOfLabel(label) {
+  for (const [cat, leaves] of Object.entries(DOCUMENT_TAXONOMY)) {
+    if (leaves.includes(label)) return cat;
+  }
+  return label;
+}
 
 async function loadData() {
   loading = true;
@@ -1265,14 +1279,15 @@ function renderFieldRows() {
       return;
     }
     const grouped = {};
-    valid.forEach(f => { (grouped[f.label] = grouped[f.label] || []).push(f); });
-    const orderedCats = [...DOCUMENT_CATEGORIES, ...Object.keys(grouped).filter(c => !DOCUMENT_CATEGORIES.includes(c))];
+    valid.forEach(f => { const cat = categoryOfLabel(f.label); (grouped[cat] = grouped[cat] || []).push(f); });
+    const orderedCats = [...Object.keys(DOCUMENT_TAXONOMY), ...Object.keys(grouped).filter(c => !DOCUMENT_TAXONOMY[c])];
     container.innerHTML = orderedCats.filter(c => grouped[c]).map(cat => `
       <div class="doc-category">
         <div class="doc-category-title">${escapeHTML(cat)}</div>
         ${grouped[cat].map(f => {
           const fileHref = (f.storagePath && !f.removeFile) ? supabase.storage.from("project-files").getPublicUrl(f.storagePath).data.publicUrl : null;
-          return `<div class="kv-item">${escapeHTML(f.value || "—")}${fileHref ? ` · <a href="${fileHref}" target="_blank" rel="noopener" title="${fmtBytes(f.fileSize)}">${escapeHTML(fileNameFromPath(f.storagePath))}</a>` : ""}</div>`;
+          const prefix = f.label !== cat ? `<b>${escapeHTML(f.label)}:</b> ` : "";
+          return `<div class="kv-item">${prefix}${escapeHTML(f.value || "—")}${fileHref ? ` · <a href="${fileHref}" target="_blank" rel="noopener" title="${fmtBytes(f.fileSize)}">${escapeHTML(fileNameFromPath(f.storagePath))}</a>` : ""}</div>`;
         }).join("")}
       </div>`).join("");
     return;
@@ -1287,10 +1302,17 @@ function renderFieldRows() {
     const fileControl = fileName
       ? `<span class="kv-file-chip">${fileHref ? `<a href="${fileHref}" target="_blank" rel="noopener" title="${fileTitle}">${escapeHTML(fileName)}</a>` : `<span title="${fileTitle}">${escapeHTML(fileName)}</span>`}<button type="button" class="field-file-remove" data-idx="${i}" title="Αφαίρεση αρχείου">&#10005;</button></span>`
       : `<button type="button" class="kv-file-attach" data-idx="${i}" title="Επισύναψη αρχείου">&#128206;</button>`;
-    const categoryOptions = DOCUMENT_CATEGORIES.includes(f.label) || !f.label ? DOCUMENT_CATEGORIES : [f.label, ...DOCUMENT_CATEGORIES];
+    const known = Object.values(DOCUMENT_TAXONOMY).some(leaves => leaves.includes(f.label));
+    const selectHtml = `<select class="field-label" data-idx="${i}">
+      ${Object.entries(DOCUMENT_TAXONOMY).map(([cat, leaves]) => `
+        <optgroup label="${escapeHTML(cat)}">
+          ${leaves.map(l => `<option value="${escapeHTML(l)}" ${f.label === l ? "selected" : ""}>${escapeHTML(l)}</option>`).join("")}
+        </optgroup>`).join("")}
+      ${!known && f.label ? `<option value="${escapeHTML(f.label)}" selected>${escapeHTML(f.label)}</option>` : ""}
+    </select>`;
     return `
     <div class="kv-row">
-      <select class="field-label" data-idx="${i}">${categoryOptions.map(c => `<option value="${escapeHTML(c)}" ${f.label === c ? "selected" : ""}>${escapeHTML(c)}</option>`).join("")}</select>
+      ${selectHtml}
       <input class="field-value" data-idx="${i}" placeholder="π.χ. Αρ. 123/2024" value="${escapeHTML(f.value)}">
       <div>${fileControl}<input type="file" class="field-file-input" data-idx="${i}" style="display:none;"></div>
       <button type="button" class="contact-remove" data-idx="${i}">&#10005;</button>
@@ -1322,7 +1344,7 @@ function renderFieldRows() {
 }
 
 document.getElementById("addFieldBtn").addEventListener("click", () => {
-  pjFieldRows.push({ label: DOCUMENT_CATEGORIES[0], value: "", storagePath: null, fileSize: null, pendingFile: null, removeFile: false });
+  pjFieldRows.push({ label: Object.values(DOCUMENT_TAXONOMY)[0][0], value: "", storagePath: null, fileSize: null, pendingFile: null, removeFile: false });
   renderFieldRows();
 });
 
