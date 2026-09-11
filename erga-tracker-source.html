@@ -431,6 +431,7 @@ function mapField(row) {
   return {
     id: row.id, projectId: row.project_id, label: row.label, value: row.value,
     storagePath: row.storage_path, fileSize: row.file_size ? Number(row.file_size) : null,
+    fileName: row.file_name || (row.storage_path ? fileNameFromPath(row.storage_path) : null),
     fileUrl: row.storage_path ? supabase.storage.from("project-files").getPublicUrl(row.storage_path).data.publicUrl : null,
     createdAt: row.created_at
   };
@@ -667,7 +668,7 @@ function renderMain() {
             ${c.email ? `<span>${escapeHTML(c.email)}</span>` : ""}
           </div>`).join("")}</div>` : ""}
         ${projectFields.length ? `<div class="kv-list" style="margin-top:8px;">${projectFields.map(f => `
-          <div class="kv-item"><b>${escapeHTML(f.label)}:</b> ${escapeHTML(f.value || "—")}${f.fileUrl ? ` · <a href="${f.fileUrl}" target="_blank" rel="noopener" title="${fmtBytes(f.fileSize)}">${escapeHTML(fileNameFromPath(f.storagePath))}</a>` : ""}</div>`).join("")}</div>` : ""}
+          <div class="kv-item"><b>${escapeHTML(f.label)}:</b> ${escapeHTML(f.value || "—")}${f.fileUrl ? ` · <a href="${f.fileUrl}" target="_blank" rel="noopener" title="${fmtBytes(f.fileSize)}">${escapeHTML(f.fileName || fileNameFromPath(f.storagePath))}</a>` : ""}</div>`).join("")}</div>` : ""}
       </div>
       <div class="action-group no-print">
         <button class="btn-outline" style="width:auto; padding:7px 11px; font-size:12.5px;" id="editProjectBtn">Στοιχεία έργου</button>
@@ -1097,11 +1098,16 @@ async function saveProjectFields(projectId, fieldRows) {
   const validRows = fieldRows.filter(f => f.label.trim());
 
   for (const row of validRows) {
-    if (row.removeFile) { row.storagePath = null; row.fileSize = null; }
+    if (row.removeFile) { row.storagePath = null; row.fileSize = null; row.fileName = null; }
     if (row.pendingFile) {
-      const path = `${projectId}/${Date.now()}_${row.pendingFile.name.replace(/[\/\\]/g, "_")}`;
+      const extMatch = row.pendingFile.name.match(/\.[a-zA-Z0-9]+$/);
+      const path = `${projectId}/${Date.now()}${extMatch ? extMatch[0] : ""}`;
       const { error: uploadError } = await supabase.storage.from("project-files").upload(path, row.pendingFile);
-      if (!uploadError) { row.storagePath = path; row.fileSize = row.pendingFile.size; }
+      if (!uploadError) {
+        row.storagePath = path; row.fileSize = row.pendingFile.size; row.fileName = row.pendingFile.name;
+      } else {
+        saveError = true;
+      }
     }
   }
 
@@ -1115,7 +1121,8 @@ async function saveProjectFields(projectId, fieldRows) {
   const { data, error } = await supabase.from("project_fields").insert(
     validRows.map((f, i) => ({
       project_id: projectId, label: f.label.trim(), value: f.value.trim() || null,
-      storage_path: f.storagePath || null, file_size: f.fileSize || null, sort_order: i
+      storage_path: f.storagePath || null, file_size: f.fileSize || null,
+      file_name: f.fileName || null, sort_order: i
     }))
   ).select();
   if (error) { saveError = true; render(); return; }
@@ -1214,7 +1221,7 @@ function openProjectModal(project) {
   pjFieldRows = project
     ? fields.filter(f => f.projectId === project.id).map(f => ({
         label: f.label, value: f.value || "", storagePath: f.storagePath, fileSize: f.fileSize,
-        createdAt: f.createdAt, pendingFile: null, removeFile: false
+        fileName: f.fileName, createdAt: f.createdAt, pendingFile: null, removeFile: false
       }))
     : [];
   renderFieldRows();
@@ -1347,7 +1354,7 @@ function renderFieldRows() {
   }
   addBtn.style.display = "inline-flex";
   container.innerHTML = pjFieldRows.map((f, i) => {
-    const fileName = f.pendingFile ? f.pendingFile.name : (f.storagePath && !f.removeFile ? fileNameFromPath(f.storagePath) : null);
+    const fileName = f.pendingFile ? f.pendingFile.name : (f.storagePath && !f.removeFile ? (f.fileName || fileNameFromPath(f.storagePath)) : null);
     const fileHref = (!f.pendingFile && f.storagePath && !f.removeFile)
       ? supabase.storage.from("project-files").getPublicUrl(f.storagePath).data.publicUrl
       : null;
