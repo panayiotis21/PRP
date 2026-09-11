@@ -151,9 +151,24 @@
   .kv-list .kv-item { padding: 3px 0; }
   .kv-list .kv-item b { color: #221F1A; }
 
-  .doc-category { margin-bottom: 12px; }
-  .doc-category-title { font-weight: 600; font-size: 12.5px; color: #221F1A; margin-bottom: 3px; }
+  .doc-category { margin-bottom: 14px; }
+  .doc-category-title { font-weight: 700; font-size: 11px; letter-spacing: 0.03em; color: #8A8676; margin-bottom: 6px; }
   .doc-category .kv-item { padding: 2px 0 2px 10px; font-size: 12.5px; color: #6E6A5F; }
+
+  .doc-card { display: flex; align-items: center; gap: 10px; padding: 9px 10px; background: #F8F6F1; border: 1px solid #D8D3C5; border-radius: 4px; margin-bottom: 6px; }
+  .doc-badge { flex-shrink: 0; min-width: 34px; height: 26px; padding: 0 6px; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-size: 10px; font-weight: 700; color: #F8F6F1; }
+  .doc-badge-pdf { background: #A6402C; }
+  .doc-badge-dwg { background: #2F5FA6; }
+  .doc-badge-doc { background: #2F5FA6; }
+  .doc-badge-xls { background: #2F6B4F; }
+  .doc-badge-img { background: #8A6D1E; }
+  .doc-badge-default { background: #8A8676; }
+  .doc-card-info { flex: 1; min-width: 0; }
+  .doc-card-title { font-size: 12.5px; font-weight: 600; color: #221F1A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .doc-card-sub { font-size: 11px; color: #8A8676; margin-top: 1px; }
+  .doc-card-actions { display: flex; gap: 10px; flex-shrink: 0; }
+  .doc-card-actions a { color: #6E6A5F; font-size: 15px; }
+  .doc-card-actions a:hover { color: #221F1A; }
 
   .contact-card { display: flex; flex-wrap: wrap; gap: 3px 14px; font-size: 12.5px; color: #6E6A5F; }
   .contact-card .c-name { font-weight: 600; color: #221F1A; }
@@ -416,7 +431,8 @@ function mapField(row) {
   return {
     id: row.id, projectId: row.project_id, label: row.label, value: row.value,
     storagePath: row.storage_path, fileSize: row.file_size ? Number(row.file_size) : null,
-    fileUrl: row.storage_path ? supabase.storage.from("project-files").getPublicUrl(row.storage_path).data.publicUrl : null
+    fileUrl: row.storage_path ? supabase.storage.from("project-files").getPublicUrl(row.storage_path).data.publicUrl : null,
+    createdAt: row.created_at
   };
 }
 function fileNameFromPath(path) {
@@ -438,6 +454,18 @@ function categoryOfLabel(label) {
     if (leaves.includes(label)) return cat;
   }
   return label;
+}
+function fileExt(path) {
+  const m = fileNameFromPath(path).match(/\.([a-zA-Z0-9]+)$/);
+  return m ? m[1].toUpperCase() : "";
+}
+function fileBadgeClass(ext) {
+  if (ext === "PDF") return "doc-badge-pdf";
+  if (["DWG", "DXF"].includes(ext)) return "doc-badge-dwg";
+  if (["DOC", "DOCX"].includes(ext)) return "doc-badge-doc";
+  if (["XLS", "XLSX", "CSV"].includes(ext)) return "doc-badge-xls";
+  if (["JPG", "JPEG", "PNG", "GIF", "WEBP"].includes(ext)) return "doc-badge-img";
+  return "doc-badge-default";
 }
 
 async function loadData() {
@@ -1186,7 +1214,7 @@ function openProjectModal(project) {
   pjFieldRows = project
     ? fields.filter(f => f.projectId === project.id).map(f => ({
         label: f.label, value: f.value || "", storagePath: f.storagePath, fileSize: f.fileSize,
-        pendingFile: null, removeFile: false
+        createdAt: f.createdAt, pendingFile: null, removeFile: false
       }))
     : [];
   renderFieldRows();
@@ -1280,14 +1308,39 @@ function renderFieldRows() {
     }
     const grouped = {};
     valid.forEach(f => { const cat = categoryOfLabel(f.label); (grouped[cat] = grouped[cat] || []).push(f); });
-    const orderedCats = [...Object.keys(DOCUMENT_TAXONOMY), ...Object.keys(grouped).filter(c => !DOCUMENT_TAXONOMY[c])];
-    container.innerHTML = orderedCats.filter(c => grouped[c]).map(cat => `
+    const orderedCats = [...Object.keys(DOCUMENT_TAXONOMY), ...Object.keys(grouped).filter(c => !DOCUMENT_TAXONOMY[c])].filter(c => grouped[c]);
+    container.innerHTML = orderedCats.map((cat, ci) => `
       <div class="doc-category">
-        <div class="doc-category-title">${escapeHTML(cat)}</div>
+        <div class="doc-category-title">${ci + 1}. ${escapeHTML(cat.toUpperCase())}</div>
         ${grouped[cat].map(f => {
+          const isSubType = f.label !== cat;
+          const title = isSubType ? f.label : (f.value || cat);
+          const subParts = [];
+          if (isSubType && f.value) subParts.push(f.value);
+          if (f.createdAt) subParts.push(fmtDate(f.createdAt.slice(0, 10)));
+          if (f.fileSize) subParts.push(fmtBytes(f.fileSize));
+          const sub = subParts.join(" · ");
           const fileHref = (f.storagePath && !f.removeFile) ? supabase.storage.from("project-files").getPublicUrl(f.storagePath).data.publicUrl : null;
-          const prefix = f.label !== cat ? `<b>${escapeHTML(f.label)}:</b> ` : "";
-          return `<div class="kv-item">${prefix}${escapeHTML(f.value || "—")}${fileHref ? ` · <a href="${fileHref}" target="_blank" rel="noopener" title="${fmtBytes(f.fileSize)}">${escapeHTML(fileNameFromPath(f.storagePath))}</a>` : ""}</div>`;
+          if (!fileHref) {
+            return `<div class="doc-card">
+              <div class="doc-card-info">
+                <div class="doc-card-title">${escapeHTML(title)}</div>
+                ${sub ? `<div class="doc-card-sub">${escapeHTML(sub)}</div>` : ""}
+              </div>
+            </div>`;
+          }
+          const ext = fileExt(f.storagePath);
+          return `<div class="doc-card">
+            <div class="doc-badge ${fileBadgeClass(ext)}">${ext || "FILE"}</div>
+            <div class="doc-card-info">
+              <div class="doc-card-title">${escapeHTML(title)}</div>
+              ${sub ? `<div class="doc-card-sub">${escapeHTML(sub)}</div>` : ""}
+            </div>
+            <div class="doc-card-actions">
+              <a href="${fileHref}" target="_blank" rel="noopener" title="Προβολή">&#128065;</a>
+              <a href="${fileHref}" download title="Λήψη">&#11015;&#65039;</a>
+            </div>
+          </div>`;
         }).join("")}
       </div>`).join("");
     return;
