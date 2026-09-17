@@ -127,12 +127,7 @@
   .alloc-remove { color: #B0AB98; font-size: 15px; text-align: center; }
   .split-badge { font-size: 11px; color: #8A8676; }
 
-  .tag-badge { font-size: 10.5px; padding: 2px 8px; border-radius: 10px; background: #EFEBE0; color: #6E6A5F; white-space: nowrap; display: inline-block; }
-  .tag-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 5px 9px; border-radius: 12px; background: #EFEBE0; color: #221F1A; }
-  .tag-chip button { color: #8A8676; font-size: 13px; line-height: 1; }
-  .tag-chip button:hover { color: #A6402C; }
-  .tag-input-row { display: flex; gap: 8px; }
-  .tag-input-row input { flex: 1; }
+  .phase-badge { font-size: 10.5px; padding: 2px 8px; border-radius: 10px; background: #EFEBE0; color: #6E6A5F; white-space: nowrap; display: inline-block; }
 
   .contact-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 26px; gap: 8px; margin-bottom: 8px; align-items: center; }
   .contact-row input { padding: 8px 9px; border: 1px solid #D8D3C5; border-radius: 3px; font-size: 12.5px; background: #FFFFFF; color: #221F1A; width: 100%; }
@@ -319,13 +314,9 @@
       </div>
       <div class="field"><label>Περιγραφή</label><input id="enDescription" placeholder="π.χ. 2η πιστοποίηση εργασιών"></div>
       <div class="field">
-        <label>Ετικέτες / Φάση έργου</label>
-        <div id="enTagsWrap" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;"></div>
-        <div class="tag-input-row">
-          <input id="enTagInput" list="enTagList" placeholder="π.χ. Θεμελίωση, Σκελετός…">
-          <datalist id="enTagList"></datalist>
-          <button type="button" id="addTagBtn" class="btn-outline" style="width:auto; padding:8px 13px; font-size:12.5px;">+ Προσθήκη</button>
-        </div>
+        <label>Φάση έργου</label>
+        <select id="enPhase"></select>
+        <input id="enPhaseNew" placeholder="Νέα φάση…" style="display:none; margin-top:6px;">
       </div>
       <div class="field" id="enSupplierField"><label>Προμηθευτής</label><input id="enSupplier" list="supplierList" placeholder="π.χ. Ελαστικά Παπαδόπουλος"></div>
       <datalist id="supplierList"></datalist>
@@ -370,6 +361,7 @@ let pjFieldRows = [];
 let filterType = "all";
 let filterStatus = "all";
 let filterCategory = "all";
+let filterPhase = "all";
 let filterPaymentMethod = "all";
 let filterSearch = "";
 let filterDateFrom = "";
@@ -378,6 +370,7 @@ let allFilterType = "all";
 let allFilterProject = "all";
 let allFilterStatus = "all";
 let allFilterCategory = "all";
+let allFilterPhase = "all";
 let allFilterPaymentMethod = "all";
 let allFilterSupplier = "all";
 let allFilterSearch = "";
@@ -387,7 +380,6 @@ let supplierSearch = "";
 let entryModalType = "income";
 let vatLines = [];
 let allocations = [];
-let entryTags = [];
 let saveError = false;
 let loading = true;
 let charts = {};
@@ -412,7 +404,7 @@ function mapEntry(row) {
     invoiceNumber: row.invoice_number, paid: row.paid, paidDate: row.paid_date,
     paymentMethod: row.payment_method, splitGroupId: row.split_group_id,
     splitPercent: row.split_percent !== null && row.split_percent !== undefined ? Number(row.split_percent) : null,
-    vatLines: row.vat_lines || null, tags: row.tags || []
+    vatLines: row.vat_lines || null, phase: row.phase || null
   };
 }
 function mapProject(row) {
@@ -623,6 +615,7 @@ function renderMain() {
   let filtered = filterType === "all" ? projectEntries : projectEntries.filter(e => e.type === filterType);
   if (filterStatus !== "all") filtered = filtered.filter(e => (filterStatus === "paid" ? e.paid : !e.paid));
   if (filterCategory !== "all") filtered = filtered.filter(e => e.category === filterCategory);
+  if (filterPhase !== "all") filtered = filtered.filter(e => (e.phase || "") === filterPhase);
   if (filterPaymentMethod !== "all") filtered = filtered.filter(e => e.paymentMethod === filterPaymentMethod);
   if (filterDateFrom) filtered = filtered.filter(e => e.date >= filterDateFrom);
   if (filterDateTo) filtered = filtered.filter(e => e.date <= filterDateTo);
@@ -637,6 +630,7 @@ function renderMain() {
   }
   filtered = filtered.slice().sort((a, b) => (a.date < b.date ? 1 : -1));
   const categoriesInProject = [...new Set(projectEntries.map(e => e.category).filter(Boolean))];
+  const phasesInProject = [...new Set(projectEntries.map(e => e.phase).filter(Boolean))];
   const { months, data } = monthlyBreakdown(projectEntries);
 
   const projectContacts = contacts.filter(c => c.projectId === activeProject.id);
@@ -704,6 +698,10 @@ function renderMain() {
         <option value="all">Όλες οι κατηγορίες</option>
         ${categoriesInProject.map(c => `<option value="${escapeHTML(c)}" ${filterCategory === c ? "selected" : ""}>${escapeHTML(c)}</option>`).join("")}
       </select>
+      <select class="filter-input" id="phaseFilter">
+        <option value="all">Όλες οι φάσεις</option>
+        ${phasesInProject.map(p => `<option value="${escapeHTML(p)}" ${filterPhase === p ? "selected" : ""}>${escapeHTML(p)}</option>`).join("")}
+      </select>
       <span class="filter-date-label">Από</span>
       <input class="filter-input" id="dateFromInput" type="date" value="${filterDateFrom}">
       <span class="filter-date-label">Έως</span>
@@ -729,6 +727,8 @@ function renderMain() {
   }
   const categoryFilterEl = document.getElementById("categoryFilter");
   if (categoryFilterEl) categoryFilterEl.addEventListener("change", (e) => { filterCategory = e.target.value; render(); });
+  const phaseFilterEl = document.getElementById("phaseFilter");
+  if (phaseFilterEl) phaseFilterEl.addEventListener("change", (e) => { filterPhase = e.target.value; render(); });
   const dateFromEl = document.getElementById("dateFromInput");
   if (dateFromEl) dateFromEl.addEventListener("change", (e) => { filterDateFrom = e.target.value; render(); });
   const dateToEl = document.getElementById("dateToInput");
@@ -873,6 +873,7 @@ function renderAllInvoices(main, errHTML) {
   if (allFilterProject !== "all") all = all.filter(e => e.projectId === allFilterProject);
   if (allFilterStatus !== "all") all = all.filter(e => (allFilterStatus === "paid" ? e.paid : !e.paid));
   if (allFilterCategory !== "all") all = all.filter(e => e.category === allFilterCategory);
+  if (allFilterPhase !== "all") all = all.filter(e => (e.phase || "") === allFilterPhase);
   if (allFilterPaymentMethod !== "all") all = all.filter(e => e.paymentMethod === allFilterPaymentMethod);
   if (allFilterSupplier !== "all") all = all.filter(e => (e.supplier || "") === allFilterSupplier);
   if (allFilterDateFrom) all = all.filter(e => e.date >= allFilterDateFrom);
@@ -889,6 +890,7 @@ function renderAllInvoices(main, errHTML) {
   }
   all = all.sort((a, b) => (a.date < b.date ? 1 : -1));
   const allCategories = [...new Set(entries.map(e => e.category).filter(Boolean))];
+  const allPhases = [...new Set(entries.map(e => e.phase).filter(Boolean))];
   const allSuppliers = [...new Set(entries.map(e => e.supplier).filter(Boolean))];
   main.innerHTML = `
     ${errHTML}
@@ -924,6 +926,10 @@ function renderAllInvoices(main, errHTML) {
         <option value="all">Όλες οι κατηγορίες</option>
         ${allCategories.map(c => `<option value="${escapeHTML(c)}" ${allFilterCategory === c ? "selected" : ""}>${escapeHTML(c)}</option>`).join("")}
       </select>
+      <select class="filter-input" id="allPhaseFilter">
+        <option value="all">Όλες οι φάσεις</option>
+        ${allPhases.map(p => `<option value="${escapeHTML(p)}" ${allFilterPhase === p ? "selected" : ""}>${escapeHTML(p)}</option>`).join("")}
+      </select>
       <select class="filter-input" id="allSupplierFilter">
         <option value="all">Όλοι οι προμηθευτές</option>
         ${allSuppliers.map(s => `<option value="${escapeHTML(s)}" ${allFilterSupplier === s ? "selected" : ""}>${escapeHTML(s)}</option>`).join("")}
@@ -940,13 +946,14 @@ function renderAllInvoices(main, errHTML) {
     ${all.length === 0 ? `<div class="empty-table">Δεν βρέθηκαν εγγραφές με αυτά τα φίλτρα.</div>` : `
     <div id="entriesWrap">
       <table>
-        <thead><tr><th>Ημ/νία</th><th>Έργο</th><th>Περιγραφή</th><th>Προμηθευτής</th><th>Πληρωμή</th><th class="right">Καθαρή αξία</th><th class="right">ΦΠΑ</th><th class="right">Σύνολο</th><th>Κατάσταση</th></tr></thead>
+        <thead><tr><th>Ημ/νία</th><th>Έργο</th><th>Περιγραφή</th><th>Φάση</th><th>Προμηθευτής</th><th>Πληρωμή</th><th class="right">Καθαρή αξία</th><th class="right">ΦΠΑ</th><th class="right">Σύνολο</th><th>Κατάσταση</th></tr></thead>
         <tbody>
           ${all.map(e => `
             <tr>
               <td class="num" style="color:#6E6A5F; white-space:nowrap;">${fmtDate(e.date)}</td>
               <td style="color:#6E6A5F;">${escapeHTML(projectById[e.projectId] || "—")}</td>
-              <td><div class="desc-main">${escapeHTML(e.description)}</div>${e.invoiceNumber ? `<div class="desc-sub">Τιμ. ${escapeHTML(e.invoiceNumber)}</div>` : ""}${e.splitGroupId ? `<div class="split-badge">Διαχωρισμένο · ${e.splitPercent}%</div>` : ""}${e.tags && e.tags.length ? `<div style="margin-top:4px; display:flex; flex-wrap:wrap; gap:4px;">${e.tags.map(t => `<span class="tag-badge">${escapeHTML(t)}</span>`).join("")}</div>` : ""}</td>
+              <td><div class="desc-main">${escapeHTML(e.description)}</div>${e.invoiceNumber ? `<div class="desc-sub">Τιμ. ${escapeHTML(e.invoiceNumber)}</div>` : ""}${e.splitGroupId ? `<div class="split-badge">Διαχωρισμένο · ${e.splitPercent}%</div>` : ""}</td>
+              <td>${e.phase ? `<span class="phase-badge">${escapeHTML(e.phase)}</span>` : `<span style="color:#8A8676;">—</span>`}</td>
               <td style="color:#6E6A5F;">${escapeHTML(e.supplier || "—")}</td>
               <td style="color:#6E6A5F;">${escapeHTML(e.paymentMethod || "—")}</td>
               <td class="num right">${fmt(e.net)} €</td>
@@ -977,6 +984,8 @@ function renderAllInvoices(main, errHTML) {
   }
   const allCategoryEl = document.getElementById("allCategoryFilter");
   if (allCategoryEl) allCategoryEl.addEventListener("change", (e) => { allFilterCategory = e.target.value; render(); });
+  const allPhaseEl = document.getElementById("allPhaseFilter");
+  if (allPhaseEl) allPhaseEl.addEventListener("change", (e) => { allFilterPhase = e.target.value; render(); });
   const allSupplierEl = document.getElementById("allSupplierFilter");
   if (allSupplierEl) allSupplierEl.addEventListener("change", (e) => { allFilterSupplier = e.target.value; render(); });
   const allDateFromEl = document.getElementById("allDateFromInput");
@@ -1000,13 +1009,14 @@ function entriesTableHTML(list) {
   return `
     <div id="entriesWrap">
       <table>
-        <thead><tr><th>Ημ/νία</th><th>Περιγραφή</th><th>Κατηγορία</th><th>Πληρωμή</th><th class="right">Καθαρή αξία</th><th class="right">ΦΠΑ</th><th class="right">Σύνολο</th><th>Κατάσταση</th><th></th></tr></thead>
+        <thead><tr><th>Ημ/νία</th><th>Περιγραφή</th><th>Κατηγορία</th><th>Φάση</th><th>Πληρωμή</th><th class="right">Καθαρή αξία</th><th class="right">ΦΠΑ</th><th class="right">Σύνολο</th><th>Κατάσταση</th><th></th></tr></thead>
         <tbody>
           ${list.map(e => `
             <tr>
               <td class="num" style="color:#6E6A5F; white-space:nowrap;">${fmtDate(e.date)}</td>
-              <td><div class="desc-main">${escapeHTML(e.description)}</div>${e.invoiceNumber ? `<div class="desc-sub">Τιμ. ${escapeHTML(e.invoiceNumber)}</div>` : ""}${e.splitGroupId ? `<div class="split-badge">Διαχωρισμένο · ${e.splitPercent}%</div>` : ""}${e.tags && e.tags.length ? `<div style="margin-top:4px; display:flex; flex-wrap:wrap; gap:4px;">${e.tags.map(t => `<span class="tag-badge">${escapeHTML(t)}</span>`).join("")}</div>` : ""}</td>
+              <td><div class="desc-main">${escapeHTML(e.description)}</div>${e.invoiceNumber ? `<div class="desc-sub">Τιμ. ${escapeHTML(e.invoiceNumber)}</div>` : ""}${e.splitGroupId ? `<div class="split-badge">Διαχωρισμένο · ${e.splitPercent}%</div>` : ""}</td>
               <td style="color:#6E6A5F;">${escapeHTML(e.category)}</td>
+              <td>${e.phase ? `<span class="phase-badge">${escapeHTML(e.phase)}</span>` : `<span style="color:#8A8676;">—</span>`}</td>
               <td style="color:#6E6A5F;">${escapeHTML(e.paymentMethod || "—")}</td>
               <td class="num right">${fmt(e.net)} €</td>
               <td class="num right" style="color:#8A8676;">${fmt(e.vat)} €${vatRateLabel(e) ? `<div class="desc-sub" style="text-align:right;">${vatRateLabel(e)}</div>` : ""}</td>
@@ -1151,7 +1161,7 @@ async function addEntries(entryList) {
     payment_method: entry.paymentMethod || null, split_group_id: entry.splitGroupId || null,
     split_percent: entry.splitPercent !== null && entry.splitPercent !== undefined ? entry.splitPercent : null,
     vat_lines: entry.vatLines || null, expense_scope: "project",
-    tags: entry.tags && entry.tags.length ? entry.tags : null
+    phase: entry.phase || null
   }));
   const { data, error } = await supabase.from("entries").insert(rows).select();
   if (error) { saveError = true; render(); return; }
@@ -1499,11 +1509,7 @@ function openEntryModal(type) {
   renderAllocations();
   document.getElementById("enDate").value = todayISO();
   document.getElementById("enDescription").value = "";
-  entryTags = [];
-  renderEntryTags();
-  document.getElementById("enTagInput").value = "";
-  const tagNames = [...new Set(entries.flatMap(e => e.tags || []))];
-  document.getElementById("enTagList").innerHTML = tagNames.map(t => `<option value="${escapeHTML(t)}"></option>`).join("");
+  updatePhaseField();
   document.getElementById("enSupplier").value = "";
   document.getElementById("enSupplierField").style.display = isIncome ? "none" : "block";
   const supplierNames = [...new Set(entries.filter(e => e.supplier).map(e => e.supplier))];
@@ -1524,28 +1530,35 @@ function openEntryModal(type) {
   openModal("entryModalOverlay");
 }
 
-function renderEntryTags() {
-  const wrap = document.getElementById("enTagsWrap");
-  wrap.innerHTML = entryTags.map((t, i) => `
-    <span class="tag-chip">${escapeHTML(t)}<button type="button" data-remove-tag="${i}">&#10005;</button></span>`).join("");
-  wrap.querySelectorAll("[data-remove-tag]").forEach(btn => btn.addEventListener("click", () => {
-    entryTags.splice(+btn.getAttribute("data-remove-tag"), 1);
-    renderEntryTags();
-  }));
+const NEW_PHASE_VALUE = "__newphase__";
+const NO_PHASE_VALUE = "";
+
+function updatePhaseField() {
+  const selectEl = document.getElementById("enPhase");
+  const newInputEl = document.getElementById("enPhaseNew");
+  const used = [...new Set(entries.map(e => e.phase).filter(Boolean))];
+  selectEl.innerHTML = `<option value="${NO_PHASE_VALUE}">— Χωρίς φάση —</option>`
+    + used.map(p => `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`).join("")
+    + `<option value="${NEW_PHASE_VALUE}">+ Νέα φάση…</option>`;
+  selectEl.value = NO_PHASE_VALUE;
+  newInputEl.value = "";
+  newInputEl.style.display = "none";
 }
 
-function addEntryTag() {
-  const input = document.getElementById("enTagInput");
-  const value = input.value.trim();
-  if (value && !entryTags.includes(value)) entryTags.push(value);
-  input.value = "";
-  renderEntryTags();
-  input.focus();
+function selectedPhase() {
+  const selectEl = document.getElementById("enPhase");
+  if (selectEl.value === NEW_PHASE_VALUE) return document.getElementById("enPhaseNew").value.trim();
+  return selectEl.value;
 }
 
-document.getElementById("addTagBtn").addEventListener("click", addEntryTag);
-document.getElementById("enTagInput").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") { e.preventDefault(); addEntryTag(); }
+document.getElementById("enPhase").addEventListener("change", (e) => {
+  const newInputEl = document.getElementById("enPhaseNew");
+  if (e.target.value === NEW_PHASE_VALUE) {
+    newInputEl.style.display = "block";
+    newInputEl.focus();
+  } else {
+    newInputEl.style.display = "none";
+  }
 });
 
 const NEW_CATEGORY_VALUE = "__new__";
@@ -1663,8 +1676,7 @@ document.getElementById("enSubmit").addEventListener("click", () => {
   const invoiceNumber = document.getElementById("enInvoice").value.trim();
   const paymentMethod = document.getElementById("enPaymentMethod").value;
   const paidDate = paid ? todayISO() : "";
-  const leftoverTag = document.getElementById("enTagInput").value.trim();
-  const tags = leftoverTag && !entryTags.includes(leftoverTag) ? [...entryTags, leftoverTag] : entryTags.slice();
+  const phase = selectedPhase();
 
   const isSplit = allocations.length > 1;
   const splitGroupId = isSplit ? ("split-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7)) : null;
@@ -1675,7 +1687,7 @@ document.getElementById("enSubmit").addEventListener("click", () => {
     return {
       projectId: a.projectId, type: entryModalType, date, description, category, net: partNet, vat: partVat, vatRate,
       vatLines: cleanLines, supplier, invoiceNumber, paid, paidDate, paymentMethod,
-      splitGroupId, splitPercent: isSplit ? pct : null, tags
+      splitGroupId, splitPercent: isSplit ? pct : null, phase
     };
   });
   addEntries(entryList);
