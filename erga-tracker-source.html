@@ -82,6 +82,8 @@
   .status-paid { border-color: #B9D4C4; background: #E7F2EC; color: #2F6B4F; }
   .status-pending { border-color: #E0D5A8; background: #FBF3DC; color: #8A6D1E; }
   .del-btn { color: #B0AB98; font-size: 16px; }
+  .edit-btn { color: #B0AB98; font-size: 14px; }
+  .edit-btn:hover { color: #221F1A; }
   .empty-table { border: 1px solid #D8D3C5; background: #F8F6F1; padding: 40px 20px; text-align: center; color: #8A8676; font-size: 13px; }
 
   .chart-section { margin: 30px 0; }
@@ -121,10 +123,15 @@
   .vat-line-remove { color: #B0AB98; font-size: 16px; text-align: center; }
   .vat-line-remove:hover { color: #A6402C; }
 
-  .alloc-row { display: grid; grid-template-columns: 1fr 80px 26px; gap: 8px; margin-bottom: 8px; align-items: center; }
-  .alloc-row.single { grid-template-columns: 1fr 80px; }
-  .alloc-row select, .alloc-row input { padding: 8px 9px; border: 1px solid #D8D3C5; border-radius: 3px; font-size: 13px; background: #FFFFFF; color: #221F1A; }
-  .alloc-remove { color: #B0AB98; font-size: 15px; text-align: center; }
+  .alloc-card { border: 1px solid #D8D3C5; border-radius: 4px; padding: 10px; margin-bottom: 8px; background: #FFFFFF; }
+  .alloc-card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 7px; }
+  .alloc-card-row:last-of-type { margin-bottom: 0; }
+  .alloc-card select, .alloc-card input { padding: 7px 8px; border: 1px solid #D8D3C5; border-radius: 3px; font-size: 12.5px; background: #FFFFFF; color: #221F1A; width: 100%; }
+  .alloc-card input[type="number"] { text-align: right; }
+  .alloc-card-new { margin-top: 5px; }
+  .alloc-card-footer { margin-top: 8px; text-align: right; }
+  .alloc-remove { color: #A6402C; font-size: 12px; }
+  .alloc-remove:hover { text-decoration: underline; }
   .split-badge { font-size: 11px; color: #8A8676; }
 
   .phase-badge { font-size: 10.5px; padding: 2px 8px; border-radius: 10px; background: #EFEBE0; color: #6E6A5F; white-space: nowrap; display: inline-block; }
@@ -298,30 +305,20 @@
       <button class="modal-close" data-close="entryModalOverlay">&#10005;</button>
     </div>
     <div class="modal-body">
-      <div class="field" id="enProjectField">
-        <label>Έργο(-α)</label>
-        <div id="enProjectAllocations"></div>
-        <button type="button" id="addAllocationBtn" class="btn-outline" style="margin-top:2px; font-size:12px; padding:6px 10px; width:auto; display:inline-flex;">+ Προσθήκη έργου</button>
-        <div id="allocationRemaining" style="font-size:11.5px; margin-top:6px;"></div>
-      </div>
       <div class="field-row" style="margin-bottom:14px;">
         <div class="field" style="margin-bottom:0;"><label>Ημερομηνία</label><input id="enDate" type="date"></div>
-        <div class="field" style="margin-bottom:0;" id="enCategoryField">
-          <label>Κατηγορία</label>
-          <select id="enCategory"></select>
-          <input id="enCategoryNew" placeholder="Νέα κατηγορία…" style="display:none; margin-top:6px;">
-        </div>
+        <div class="field" style="margin-bottom:0;"><label>Τρόπος πληρωμής</label><select id="enPaymentMethod"></select></div>
       </div>
       <div class="field"><label>Περιγραφή</label><input id="enDescription" placeholder="π.χ. 2η πιστοποίηση εργασιών"></div>
-      <div class="field">
-        <label>Φάση έργου</label>
-        <select id="enPhase"></select>
-        <input id="enPhaseNew" placeholder="Νέα φάση…" style="display:none; margin-top:6px;">
-      </div>
       <div class="field" id="enSupplierField"><label>Προμηθευτής</label><input id="enSupplier" list="supplierList" placeholder="π.χ. Ελαστικά Παπαδόπουλος"></div>
       <datalist id="supplierList"></datalist>
       <div class="field"><label>Αριθμός τιμολογίου</label><input id="enInvoice"></div>
-      <div class="field"><label>Τρόπος πληρωμής</label><select id="enPaymentMethod"></select></div>
+      <div class="field" id="enProjectField">
+        <label>Κατανομή — Έργο / Κατηγορία / Φάση (μπορείς να σπάσεις σε πολλές γραμμές)</label>
+        <div id="enProjectAllocations"></div>
+        <button type="button" id="addAllocationBtn" class="btn-outline" style="margin-top:2px; font-size:12px; padding:6px 10px; width:auto; display:inline-flex;">+ Προσθήκη γραμμής</button>
+        <div id="allocationRemaining" style="font-size:11.5px; margin-top:6px;"></div>
+      </div>
       <div class="field">
         <label>Γραμμές ΦΠΑ</label>
         <div id="vatLinesWrap"></div>
@@ -380,6 +377,8 @@ let supplierSearch = "";
 let entryModalType = "income";
 let vatLines = [];
 let allocations = [];
+let editingEntryIds = [];
+let editingSplitGroupId = null;
 let saveError = false;
 let loading = true;
 let charts = {};
@@ -748,6 +747,7 @@ function renderMain() {
   document.getElementById("addExpenseBtn").addEventListener("click", () => openEntryModal("expense"));
   document.querySelectorAll("[data-toggle-paid]").forEach(btn => btn.addEventListener("click", () => togglePaid(btn.getAttribute("data-toggle-paid"))));
   document.querySelectorAll("[data-delete-entry]").forEach(btn => btn.addEventListener("click", () => deleteEntry(btn.getAttribute("data-delete-entry"))));
+  document.querySelectorAll("[data-edit-entry]").forEach(btn => btn.addEventListener("click", () => editEntry(btn.getAttribute("data-edit-entry"))));
   drawMonthlyChart("chartMonthly", months, data);
 }
 
@@ -946,7 +946,7 @@ function renderAllInvoices(main, errHTML) {
     ${all.length === 0 ? `<div class="empty-table">Δεν βρέθηκαν εγγραφές με αυτά τα φίλτρα.</div>` : `
     <div id="entriesWrap">
       <table>
-        <thead><tr><th>Ημ/νία</th><th>Έργο</th><th>Περιγραφή</th><th>Φάση</th><th>Προμηθευτής</th><th>Πληρωμή</th><th class="right">Καθαρή αξία</th><th class="right">ΦΠΑ</th><th class="right">Σύνολο</th><th>Κατάσταση</th></tr></thead>
+        <thead><tr><th>Ημ/νία</th><th>Έργο</th><th>Περιγραφή</th><th>Φάση</th><th>Προμηθευτής</th><th>Πληρωμή</th><th class="right">Καθαρή αξία</th><th class="right">ΦΠΑ</th><th class="right">Σύνολο</th><th>Κατάσταση</th><th></th></tr></thead>
         <tbody>
           ${all.map(e => `
             <tr>
@@ -960,6 +960,7 @@ function renderAllInvoices(main, errHTML) {
               <td class="num right" style="color:#8A8676;">${fmt(e.vat)} €${vatRateLabel(e) ? `<div class="desc-sub" style="text-align:right;">${vatRateLabel(e)}</div>` : ""}</td>
               <td class="num right ${e.type === "income" ? "amt-pos" : "amt-neg"}">${e.type === "income" ? "+" : "−"}${fmt(e.net + e.vat)} €</td>
               <td><span class="status-btn ${e.paid ? "status-paid" : "status-pending"}">${e.paid ? "Εξοφλήθηκε" : "Εκκρεμεί"}</span></td>
+              <td class="right"><button class="edit-btn" data-edit-entry="${e.id}" title="Επεξεργασία">&#9998;</button></td>
             </tr>`).join("")}
         </tbody>
       </table>
@@ -994,6 +995,7 @@ function renderAllInvoices(main, errHTML) {
   if (allDateToEl) allDateToEl.addEventListener("change", (e) => { allFilterDateTo = e.target.value; render(); });
   const allPaymentMethodEl = document.getElementById("allPaymentMethodFilter");
   if (allPaymentMethodEl) allPaymentMethodEl.addEventListener("change", (e) => { allFilterPaymentMethod = e.target.value; render(); });
+  document.querySelectorAll("[data-edit-entry]").forEach(btn => btn.addEventListener("click", () => editEntry(btn.getAttribute("data-edit-entry"))));
 }
 
 function vatRateLabel(e) {
@@ -1022,7 +1024,7 @@ function entriesTableHTML(list) {
               <td class="num right" style="color:#8A8676;">${fmt(e.vat)} €${vatRateLabel(e) ? `<div class="desc-sub" style="text-align:right;">${vatRateLabel(e)}</div>` : ""}</td>
               <td class="num right ${e.type === "income" ? "amt-pos" : "amt-neg"}">${e.type === "income" ? "+" : "−"}${fmt(e.net + e.vat)} €</td>
               <td><button class="status-btn ${e.paid ? "status-paid" : "status-pending"}" data-toggle-paid="${e.id}">${e.paid ? "Εξοφλήθηκε" : "Εκκρεμεί"}</button></td>
-              <td class="right"><button class="del-btn" data-delete-entry="${e.id}">&#10005;</button></td>
+              <td class="right"><button class="edit-btn" data-edit-entry="${e.id}" title="Επεξεργασία">&#9998;</button> <button class="del-btn" data-delete-entry="${e.id}">&#10005;</button></td>
             </tr>`).join("")}
         </tbody>
       </table>
@@ -1153,8 +1155,8 @@ async function deleteProject(id) {
   if (filesToRemove.length) await supabase.storage.from("project-files").remove(filesToRemove);
 }
 
-async function addEntries(entryList) {
-  const rows = entryList.map(entry => ({
+function entryRow(entry) {
+  return {
     project_id: entry.projectId, type: entry.type, date: entry.date, description: entry.description,
     category: entry.category, net: entry.net, vat_rate: entry.vatRate, vat: entry.vat, supplier: entry.supplier || null,
     invoice_number: entry.invoiceNumber, paid: entry.paid, paid_date: entry.paidDate || null,
@@ -1162,11 +1164,48 @@ async function addEntries(entryList) {
     split_percent: entry.splitPercent !== null && entry.splitPercent !== undefined ? entry.splitPercent : null,
     vat_lines: entry.vatLines || null, expense_scope: "project",
     phase: entry.phase || null
-  }));
+  };
+}
+
+async function addEntries(entryList) {
+  const rows = entryList.map(entryRow);
   const { data, error } = await supabase.from("entries").insert(rows).select();
   if (error) { saveError = true; render(); return; }
   data.forEach(d => entries.push(mapEntry(d)));
   render();
+}
+
+async function updateEntryGroup(editingIds, entryList) {
+  const keepIds = new Set(entryList.filter(e => e.id).map(e => e.id));
+  const idsToDelete = editingIds.filter(id => !keepIds.has(id));
+  for (const entry of entryList) {
+    if (entry.id) {
+      const { error } = await supabase.from("entries").update(entryRow(entry)).eq("id", entry.id);
+      if (error) { saveError = true; render(); return; }
+    } else {
+      const { error } = await supabase.from("entries").insert(entryRow(entry));
+      if (error) { saveError = true; render(); return; }
+    }
+  }
+  if (idsToDelete.length) {
+    const { error } = await supabase.from("entries").delete().in("id", idsToDelete);
+    if (error) { saveError = true; render(); return; }
+  }
+  await refetchEntries();
+}
+
+async function refetchEntries() {
+  const { data, error } = await supabase.from("entries").select("*");
+  if (error) { saveError = true; render(); return; }
+  entries = data.map(mapEntry);
+  render();
+}
+
+function editEntry(id) {
+  const entry = entries.find(e => e.id === id);
+  if (!entry) return;
+  const group = entry.splitGroupId ? entries.filter(e => e.splitGroupId === entry.splitGroupId) : [entry];
+  openEntryModal(entry.type, group);
 }
 
 async function deleteEntry(id) {
@@ -1442,19 +1481,72 @@ document.getElementById("pjSubmit").addEventListener("click", () => {
   closeModal("projectModalOverlay");
 });
 
+function resolveLineCategory(a) {
+  return a.category === NEW_CATEGORY_VALUE ? (a.categoryNew || "").trim() : a.category;
+}
+function resolveLinePhase(a) {
+  return a.phase === NEW_PHASE_VALUE ? (a.phaseNew || "").trim() : a.phase;
+}
+
 function renderAllocations() {
   const container = document.getElementById("enProjectAllocations");
+  const base = baseCategoriesFor(entryModalType);
+  const usedCategories = [...new Set(entries.filter(e => e.type === entryModalType && e.category).map(e => e.category))];
+  const categoryPool = [...new Set([...base, ...usedCategories])];
+  const usedPhases = [...new Set(entries.map(e => e.phase).filter(Boolean))];
+
   container.innerHTML = allocations.map((a, i) => `
-    <div class="alloc-row ${allocations.length > 1 ? "" : "single"}">
-      <select class="alloc-project" data-idx="${i}">
-        ${projects.slice().sort(compareProjects).map(p => `<option value="${p.id}" ${a.projectId === p.id ? "selected" : ""}>${escapeHTML(p.name)}</option>`).join("")}
-      </select>
-      <input class="alloc-percent" data-idx="${i}" type="number" min="0" max="100" step="0.1" value="${a.percent}">
-      ${allocations.length > 1 ? `<button type="button" class="alloc-remove" data-idx="${i}">&#10005;</button>` : ""}
+    <div class="alloc-card">
+      <div class="alloc-card-row">
+        <select class="alloc-project" data-idx="${i}">
+          ${projects.slice().sort(compareProjects).map(p => `<option value="${p.id}" ${a.projectId === p.id ? "selected" : ""}>${escapeHTML(p.name)}</option>`).join("")}
+        </select>
+        <div>
+          <select class="alloc-category" data-idx="${i}">
+            ${categoryPool.map(c => `<option value="${escapeHTML(c)}" ${a.category === c ? "selected" : ""}>${escapeHTML(c)}</option>`).join("")}
+            <option value="${NEW_CATEGORY_VALUE}" ${a.category === NEW_CATEGORY_VALUE ? "selected" : ""}>+ Νέα κατηγορία…</option>
+          </select>
+          ${a.category === NEW_CATEGORY_VALUE ? `<input class="alloc-category-new alloc-card-new" data-idx="${i}" placeholder="Νέα κατηγορία…" value="${escapeHTML(a.categoryNew || "")}">` : ""}
+        </div>
+      </div>
+      <div class="alloc-card-row">
+        <div>
+          <select class="alloc-phase" data-idx="${i}">
+            <option value="${NO_PHASE_VALUE}" ${a.phase === NO_PHASE_VALUE ? "selected" : ""}>— Χωρίς φάση —</option>
+            ${usedPhases.map(p => `<option value="${escapeHTML(p)}" ${a.phase === p ? "selected" : ""}>${escapeHTML(p)}</option>`).join("")}
+            <option value="${NEW_PHASE_VALUE}" ${a.phase === NEW_PHASE_VALUE ? "selected" : ""}>+ Νέα φάση…</option>
+          </select>
+          ${a.phase === NEW_PHASE_VALUE ? `<input class="alloc-phase-new alloc-card-new" data-idx="${i}" placeholder="Νέα φάση…" value="${escapeHTML(a.phaseNew || "")}">` : ""}
+        </div>
+        <input class="alloc-percent" data-idx="${i}" type="number" min="0" max="100" step="0.1" value="${a.percent}" placeholder="%">
+      </div>
+      ${allocations.length > 1 ? `<div class="alloc-card-footer"><button type="button" class="alloc-remove" data-idx="${i}">&#10005; Αφαίρεση γραμμής</button></div>` : ""}
     </div>`).join("");
   container.querySelectorAll(".alloc-project").forEach(sel => {
     sel.addEventListener("change", (e) => {
       allocations[+e.target.getAttribute("data-idx")].projectId = e.target.value;
+    });
+  });
+  container.querySelectorAll(".alloc-category").forEach(sel => {
+    sel.addEventListener("change", (e) => {
+      allocations[+e.target.getAttribute("data-idx")].category = e.target.value;
+      renderAllocations();
+    });
+  });
+  container.querySelectorAll(".alloc-category-new").forEach(inp => {
+    inp.addEventListener("input", (e) => {
+      allocations[+e.target.getAttribute("data-idx")].categoryNew = e.target.value;
+    });
+  });
+  container.querySelectorAll(".alloc-phase").forEach(sel => {
+    sel.addEventListener("change", (e) => {
+      allocations[+e.target.getAttribute("data-idx")].phase = e.target.value;
+      renderAllocations();
+    });
+  });
+  container.querySelectorAll(".alloc-phase-new").forEach(inp => {
+    inp.addEventListener("input", (e) => {
+      allocations[+e.target.getAttribute("data-idx")].phaseNew = e.target.value;
     });
   });
   container.querySelectorAll(".alloc-percent").forEach(inp => {
@@ -1496,71 +1588,13 @@ document.getElementById("addAllocationBtn").addEventListener("click", () => {
   const remaining = Math.max(0, Math.round((100 - total) * 10) / 10);
   const usedIds = allocations.map(a => a.projectId);
   const nextProject = projects.find(p => !usedIds.includes(p.id)) || projects[0];
-  allocations.push({ projectId: nextProject.id, percent: remaining });
+  const base = baseCategoriesFor(entryModalType);
+  allocations.push({ id: null, projectId: nextProject.id, category: base[0], categoryNew: "", phase: NO_PHASE_VALUE, phaseNew: "", percent: remaining });
   renderAllocations();
 });
-
-function openEntryModal(type) {
-  entryModalType = type;
-  const isIncome = type === "income";
-  document.getElementById("entryModalTitle").textContent = isIncome ? "Νέο έσοδο" : "Νέο έξοδο";
-  const defaultProjectId = (activeProjectId && projects.some(p => p.id === activeProjectId)) ? activeProjectId : (projects[0] ? projects[0].id : "");
-  allocations = defaultProjectId ? [{ projectId: defaultProjectId, percent: 100 }] : [];
-  renderAllocations();
-  document.getElementById("enDate").value = todayISO();
-  document.getElementById("enDescription").value = "";
-  updatePhaseField();
-  document.getElementById("enSupplier").value = "";
-  document.getElementById("enSupplierField").style.display = isIncome ? "none" : "block";
-  const supplierNames = [...new Set(entries.filter(e => e.supplier).map(e => e.supplier))];
-  document.getElementById("supplierList").innerHTML = supplierNames.map(s => `<option value="${escapeHTML(s)}"></option>`).join("");
-  document.getElementById("enInvoice").value = "";
-  const paymentSelect = document.getElementById("enPaymentMethod");
-  paymentSelect.innerHTML = PAYMENT_METHODS.map(m => `<option value="${m}">${m}</option>`).join("");
-  vatLines = [{ net: "", rate: 19 }];
-  renderVatLines();
-  document.getElementById("enPaid").checked = false;
-  document.getElementById("enPaidLabel").textContent = isIncome ? "Έχει εισπραχθεί" : "Έχει πληρωθεί";
-  document.getElementById("enError").style.display = "none";
-  document.getElementById("enTotalPreview").textContent = "0,00 €";
-  updateCategoryField();
-  const submitBtn = document.getElementById("enSubmit");
-  submitBtn.style.background = isIncome ? "#2F6B4F" : "#C1571F";
-  submitBtn.textContent = `Αποθήκευση ${isIncome ? "εσόδου" : "εξόδου"}`;
-  openModal("entryModalOverlay");
-}
 
 const NEW_PHASE_VALUE = "__newphase__";
 const NO_PHASE_VALUE = "";
-
-function updatePhaseField() {
-  const selectEl = document.getElementById("enPhase");
-  const newInputEl = document.getElementById("enPhaseNew");
-  const used = [...new Set(entries.map(e => e.phase).filter(Boolean))];
-  selectEl.innerHTML = `<option value="${NO_PHASE_VALUE}">— Χωρίς φάση —</option>`
-    + used.map(p => `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`).join("")
-    + `<option value="${NEW_PHASE_VALUE}">+ Νέα φάση…</option>`;
-  selectEl.value = NO_PHASE_VALUE;
-  newInputEl.value = "";
-  newInputEl.style.display = "none";
-}
-
-function selectedPhase() {
-  const selectEl = document.getElementById("enPhase");
-  if (selectEl.value === NEW_PHASE_VALUE) return document.getElementById("enPhaseNew").value.trim();
-  return selectEl.value;
-}
-
-document.getElementById("enPhase").addEventListener("change", (e) => {
-  const newInputEl = document.getElementById("enPhaseNew");
-  if (e.target.value === NEW_PHASE_VALUE) {
-    newInputEl.style.display = "block";
-    newInputEl.focus();
-  } else {
-    newInputEl.style.display = "none";
-  }
-});
-
 const NEW_CATEGORY_VALUE = "__new__";
 
 function baseCategoriesFor(type) {
@@ -1568,34 +1602,63 @@ function baseCategoriesFor(type) {
   return CATEGORIES_EXP;
 }
 
-function updateCategoryField() {
-  const selectEl = document.getElementById("enCategory");
-  const newInputEl = document.getElementById("enCategoryNew");
-  const base = baseCategoriesFor(entryModalType);
-  const used = [...new Set(entries.filter(e => e.type === entryModalType && e.category).map(e => e.category))];
-  const combined = [...new Set([...base, ...used])];
-  selectEl.innerHTML = combined.map(c => `<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`).join("")
-    + `<option value="${NEW_CATEGORY_VALUE}">+ Νέα κατηγορία…</option>`;
-  selectEl.value = combined[0] || NEW_CATEGORY_VALUE;
-  newInputEl.value = "";
-  newInputEl.style.display = "none";
-}
+function openEntryModal(type, existingGroup) {
+  entryModalType = type;
+  const isIncome = type === "income";
+  const isEdit = !!(existingGroup && existingGroup.length);
+  editingEntryIds = isEdit ? existingGroup.map(e => e.id) : [];
+  editingSplitGroupId = isEdit ? (existingGroup[0].splitGroupId || null) : null;
+  const first = isEdit ? existingGroup[0] : null;
 
-function selectedCategory() {
-  const selectEl = document.getElementById("enCategory");
-  if (selectEl.value === NEW_CATEGORY_VALUE) return document.getElementById("enCategoryNew").value.trim();
-  return selectEl.value;
-}
+  document.getElementById("entryModalTitle").textContent = isEdit
+    ? (isIncome ? "Επεξεργασία εσόδου" : "Επεξεργασία εξόδου")
+    : (isIncome ? "Νέο έσοδο" : "Νέο έξοδο");
 
-document.getElementById("enCategory").addEventListener("change", (e) => {
-  const newInputEl = document.getElementById("enCategoryNew");
-  if (e.target.value === NEW_CATEGORY_VALUE) {
-    newInputEl.style.display = "block";
-    newInputEl.focus();
+  const base = baseCategoriesFor(type);
+  const categoryPool = [...new Set([...base, ...entries.filter(e => e.type === type && e.category).map(e => e.category)])];
+  const usedPhases = [...new Set(entries.map(e => e.phase).filter(Boolean))];
+
+  if (isEdit) {
+    const totalNet = existingGroup.reduce((s, e) => s + e.net, 0);
+    allocations = existingGroup.map(e => {
+      const catKnown = categoryPool.includes(e.category);
+      const phaseKnown = e.phase && usedPhases.includes(e.phase);
+      return {
+        id: e.id,
+        projectId: e.projectId,
+        category: catKnown ? e.category : NEW_CATEGORY_VALUE,
+        categoryNew: catKnown ? "" : (e.category || ""),
+        phase: e.phase ? (phaseKnown ? e.phase : NEW_PHASE_VALUE) : NO_PHASE_VALUE,
+        phaseNew: e.phase && !phaseKnown ? e.phase : "",
+        percent: totalNet > 0 ? Math.round((e.net / totalNet) * 1000) / 10 : Math.round((100 / existingGroup.length) * 10) / 10
+      };
+    });
   } else {
-    newInputEl.style.display = "none";
+    const defaultProjectId = (activeProjectId && projects.some(p => p.id === activeProjectId)) ? activeProjectId : (projects[0] ? projects[0].id : "");
+    allocations = defaultProjectId ? [{ id: null, projectId: defaultProjectId, category: base[0], categoryNew: "", phase: NO_PHASE_VALUE, phaseNew: "", percent: 100 }] : [];
   }
-});
+  renderAllocations();
+
+  document.getElementById("enDate").value = isEdit ? first.date : todayISO();
+  document.getElementById("enDescription").value = isEdit ? first.description : "";
+  document.getElementById("enSupplier").value = isEdit ? (first.supplier || "") : "";
+  document.getElementById("enSupplierField").style.display = isIncome ? "none" : "block";
+  const supplierNames = [...new Set(entries.filter(e => e.supplier).map(e => e.supplier))];
+  document.getElementById("supplierList").innerHTML = supplierNames.map(s => `<option value="${escapeHTML(s)}"></option>`).join("");
+  document.getElementById("enInvoice").value = isEdit ? (first.invoiceNumber || "") : "";
+  const paymentSelect = document.getElementById("enPaymentMethod");
+  paymentSelect.innerHTML = PAYMENT_METHODS.map(m => `<option value="${m}">${m}</option>`).join("");
+  paymentSelect.value = isEdit ? (first.paymentMethod || PAYMENT_METHODS[0]) : PAYMENT_METHODS[0];
+  vatLines = isEdit && first.vatLines && first.vatLines.length ? first.vatLines.map(l => ({ net: l.net, rate: l.rate })) : [{ net: "", rate: 19 }];
+  renderVatLines();
+  document.getElementById("enPaid").checked = isEdit ? first.paid : false;
+  document.getElementById("enPaidLabel").textContent = isIncome ? "Έχει εισπραχθεί" : "Έχει πληρωθεί";
+  document.getElementById("enError").style.display = "none";
+  const submitBtn = document.getElementById("enSubmit");
+  submitBtn.style.background = isIncome ? "#2F6B4F" : "#C1571F";
+  submitBtn.textContent = isEdit ? "Αποθήκευση αλλαγών" : `Αποθήκευση ${isIncome ? "εσόδου" : "εξόδου"}`;
+  openModal("entryModalOverlay");
+}
 
 function renderVatLines() {
   const wrap = document.getElementById("vatLinesWrap");
@@ -1658,11 +1721,10 @@ document.getElementById("enSubmit").addEventListener("click", () => {
   const isIncome = entryModalType === "income";
   if (allocations.length === 0) { errEl.textContent = "Δεν υπάρχει κανένα έργο. Δημιούργησε πρώτα ένα έργο."; errEl.style.display = "block"; return; }
   if (allocations.some(a => !a.projectId)) { errEl.textContent = "Επίλεξε έργο σε κάθε γραμμή."; errEl.style.display = "block"; return; }
+  if (allocations.some(a => !resolveLineCategory(a))) { errEl.textContent = "Δώσε κατηγορία σε κάθε γραμμή."; errEl.style.display = "block"; return; }
   const totalPercent = allocations.reduce((s, a) => s + (parseFloat(a.percent) || 0), 0);
   if (Math.abs(totalPercent - 100) > 0.05) { errEl.textContent = `Τα ποσοστά πρέπει να αθροίζουν σε 100% (τώρα: ${Math.round(totalPercent * 10) / 10}%).`; errEl.style.display = "block"; return; }
   if (!description) { errEl.textContent = "Δώσε περιγραφή."; errEl.style.display = "block"; return; }
-  const categoryCheck = selectedCategory();
-  if (!categoryCheck) { errEl.textContent = "Δώσε κατηγορία."; errEl.style.display = "block"; return; }
   const validLines = vatLines.filter(l => (parseFloat(l.net) || 0) > 0);
   if (validLines.length === 0) { errEl.textContent = "Δώσε καθαρή αξία μεγαλύτερη από 0 σε τουλάχιστον μία γραμμή ΦΠΑ."; errEl.style.display = "block"; return; }
   const cleanLines = validLines.map(l => ({ net: Math.round((parseFloat(l.net) || 0) * 100) / 100, rate: l.rate, vat: Math.round(((parseFloat(l.net) || 0) * l.rate / 100 + Number.EPSILON) * 100) / 100 }));
@@ -1671,26 +1733,29 @@ document.getElementById("enSubmit").addEventListener("click", () => {
   const vatRate = distinctRates.length === 1 ? distinctRates[0] : null;
   const paid = document.getElementById("enPaid").checked;
   const date = document.getElementById("enDate").value;
-  const category = categoryCheck;
   const supplier = entryModalType === "expense" ? document.getElementById("enSupplier").value.trim() : "";
   const invoiceNumber = document.getElementById("enInvoice").value.trim();
   const paymentMethod = document.getElementById("enPaymentMethod").value;
   const paidDate = paid ? todayISO() : "";
-  const phase = selectedPhase();
 
   const isSplit = allocations.length > 1;
-  const splitGroupId = isSplit ? ("split-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7)) : null;
+  const splitGroupId = isSplit ? (editingSplitGroupId || ("split-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7))) : null;
   const entryList = allocations.map(a => {
     const pct = parseFloat(a.percent) || 0;
     const partNet = Math.round((net * pct / 100 + Number.EPSILON) * 100) / 100;
     const partVat = Math.round((vat * pct / 100 + Number.EPSILON) * 100) / 100;
     return {
-      projectId: a.projectId, type: entryModalType, date, description, category, net: partNet, vat: partVat, vatRate,
+      id: a.id || null, projectId: a.projectId, type: entryModalType, date, description,
+      category: resolveLineCategory(a), net: partNet, vat: partVat, vatRate,
       vatLines: cleanLines, supplier, invoiceNumber, paid, paidDate, paymentMethod,
-      splitGroupId, splitPercent: isSplit ? pct : null, phase
+      splitGroupId, splitPercent: isSplit ? pct : null, phase: resolveLinePhase(a) || null
     };
   });
-  addEntries(entryList);
+  if (editingEntryIds.length > 0) {
+    updateEntryGroup(editingEntryIds, entryList);
+  } else {
+    addEntries(entryList);
+  }
   closeModal("entryModalOverlay");
 });
 
