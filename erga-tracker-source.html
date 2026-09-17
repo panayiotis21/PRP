@@ -527,9 +527,14 @@ function destroyCharts() {
   charts = {};
 }
 
+function effectiveProjectNumber(p) {
+  if (p.projectNumber !== null && p.projectNumber !== undefined) return p.projectNumber;
+  const m = (p.name || "").match(/^(\d+)/);
+  return m ? parseInt(m[1], 10) : Infinity;
+}
 function compareProjects(a, b) {
-  const na = a.projectNumber !== null && a.projectNumber !== undefined ? a.projectNumber : Infinity;
-  const nb = b.projectNumber !== null && b.projectNumber !== undefined ? b.projectNumber : Infinity;
+  const na = effectiveProjectNumber(a);
+  const nb = effectiveProjectNumber(b);
   if (na !== nb) return na - nb;
   return (a.name || "").localeCompare(b.name || "", "el");
 }
@@ -558,7 +563,7 @@ function renderSidebar() {
     const active = !showAllInvoices && p.id === activeProjectId;
     return `
       <button class="project-item ${active ? "active" : ""}" data-project-id="${p.id}">
-        <div class="code num">Έ-${String(p.projectNumber !== null && p.projectNumber !== undefined ? p.projectNumber : i + 1).padStart(2, "0")}</div>
+        <div class="code num">Έ-${String(Number.isFinite(effectiveProjectNumber(p)) ? effectiveProjectNumber(p) : i + 1).padStart(2, "0")}</div>
         <div class="name">${escapeHTML(p.name)}</div>
         <div class="pl num ${st.profit >= 0 ? "pos" : "neg"}">${st.profit >= 0 ? "+" : ""}${fmt(st.profit)} €</div>
       </button>`;
