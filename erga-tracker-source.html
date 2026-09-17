@@ -309,7 +309,11 @@
         <div class="field" style="margin-bottom:0;"><label>Ημερομηνία</label><input id="enDate" type="date"></div>
         <div class="field" style="margin-bottom:0;"><label>Τρόπος πληρωμής</label><select id="enPaymentMethod"></select></div>
       </div>
-      <div class="field"><label>Περιγραφή</label><input id="enDescription" placeholder="π.χ. 2η πιστοποίηση εργασιών"></div>
+      <div class="field">
+        <label>Περιγραφή</label>
+        <select id="enDescription"></select>
+        <input id="enDescriptionNew" placeholder="π.χ. 2η πιστοποίηση εργασιών" style="margin-top:6px;">
+      </div>
       <div class="field" id="enSupplierField"><label>Προμηθευτής</label><input id="enSupplier" list="supplierList" placeholder="π.χ. Ελαστικά Παπαδόπουλος"></div>
       <datalist id="supplierList"></datalist>
       <div class="field"><label>Αριθμός τιμολογίου</label><input id="enInvoice"></div>
@@ -1601,11 +1605,56 @@ document.getElementById("addAllocationBtn").addEventListener("click", () => {
 const NEW_PHASE_VALUE = "__newphase__";
 const NO_PHASE_VALUE = "";
 const NEW_CATEGORY_VALUE = "__new__";
+const NEW_DESCRIPTION_VALUE = "__newdesc__";
 
 function baseCategoriesFor(type) {
   if (type === "income") return CATEGORIES_INC;
   return CATEGORIES_EXP;
 }
+
+function updateDescriptionField(presetDescription) {
+  const selectEl = document.getElementById("enDescription");
+  const newInputEl = document.getElementById("enDescriptionNew");
+  const byCategory = {};
+  entries.filter(e => e.type === entryModalType && e.description).forEach(e => {
+    const cat = e.category || "Άλλο";
+    if (!byCategory[cat]) byCategory[cat] = new Set();
+    byCategory[cat].add(e.description);
+  });
+  const categories = Object.keys(byCategory).sort((a, b) => a.localeCompare(b, "el"));
+  selectEl.innerHTML = categories.map(cat => `
+      <optgroup label="${escapeHTML(cat)}">
+        ${[...byCategory[cat]].map(d => `<option value="${escapeHTML(d)}" ${presetDescription === d ? "selected" : ""}>${escapeHTML(d)}</option>`).join("")}
+      </optgroup>`).join("")
+    + `<option value="${NEW_DESCRIPTION_VALUE}">+ Νέα περιγραφή…</option>`;
+  const knownDescriptions = categories.flatMap(cat => [...byCategory[cat]]);
+  if (presetDescription && knownDescriptions.includes(presetDescription)) {
+    selectEl.value = presetDescription;
+    newInputEl.value = "";
+    newInputEl.style.display = "none";
+  } else {
+    selectEl.value = NEW_DESCRIPTION_VALUE;
+    newInputEl.value = presetDescription || "";
+    newInputEl.style.display = "block";
+  }
+}
+
+function selectedDescription() {
+  const selectEl = document.getElementById("enDescription");
+  if (selectEl.value === NEW_DESCRIPTION_VALUE) return document.getElementById("enDescriptionNew").value.trim();
+  return selectEl.value;
+}
+
+document.getElementById("enDescription").addEventListener("change", (e) => {
+  const newInputEl = document.getElementById("enDescriptionNew");
+  if (e.target.value === NEW_DESCRIPTION_VALUE) {
+    newInputEl.style.display = "block";
+    newInputEl.value = "";
+    newInputEl.focus();
+  } else {
+    newInputEl.style.display = "none";
+  }
+});
 
 function openEntryModal(type, existingGroup) {
   entryModalType = type;
@@ -1645,7 +1694,7 @@ function openEntryModal(type, existingGroup) {
   renderAllocations();
 
   document.getElementById("enDate").value = isEdit ? first.date : todayISO();
-  document.getElementById("enDescription").value = isEdit ? first.description : "";
+  updateDescriptionField(isEdit ? first.description : "");
   document.getElementById("enSupplier").value = isEdit ? (first.supplier || "") : "";
   document.getElementById("enSupplierField").style.display = isIncome ? "none" : "block";
   const supplierNames = [...new Set(entries.filter(e => e.supplier).map(e => e.supplier))];
@@ -1721,7 +1770,7 @@ function updateTotalPreview() {
 }
 
 document.getElementById("enSubmit").addEventListener("click", () => {
-  const description = document.getElementById("enDescription").value.trim();
+  const description = selectedDescription();
   const errEl = document.getElementById("enError");
   const isIncome = entryModalType === "income";
   if (allocations.length === 0) { errEl.textContent = "Δεν υπάρχει κανένα έργο. Δημιούργησε πρώτα ένα έργο."; errEl.style.display = "block"; return; }
